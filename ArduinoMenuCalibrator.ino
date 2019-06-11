@@ -10,8 +10,9 @@ char inputSeveral[buffSize]; // space for 31 chars and a terminator
 
 byte maxChars = 12; // a shorter limit to make it easier to see what happens
                    //  if too many chars are entered
-String fit;
 
+double* px;
+double* py;
 
 // NOTE DELAYS TEMPORARY - WHILE LOOP FOR INPUT NOT WORKING
 void setup() {
@@ -38,9 +39,7 @@ void setup() {
   }
   // Linear
   if(fitChoice == 1) { 
-    fit = "Linear";
-    Serial.print("Fit Chosen: ");
-    Serial.println(fit);
+    Serial.print("Fit Chosen: Linear");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -60,8 +59,8 @@ void setup() {
       
     }
     delay(3000);
-    double px[totalPoints];
-    double py[totalPoints];
+    px = new double[totalPoints];
+    py = new double[totalPoints];
     for (unsigned int i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
@@ -82,9 +81,7 @@ void setup() {
   }
   // Quadratic
   else if (fitChoice == 2) {
-    fit = "Quadratic";
-    Serial.print("Fit Chosen: ");
-    Serial.println(fit);
+    Serial.print("Fit Chosen: Quadratic");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -104,8 +101,8 @@ void setup() {
       
     }
     delay(3000);
-    double px[totalPoints];
-    double py[totalPoints];
+     px = new double[totalPoints];
+     py = new double[totalPoints];
     for (unsigned int i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
@@ -127,9 +124,7 @@ void setup() {
   }
   // Exponential
   else if (fitChoice == 3) {
-    fit = "Exponential";
-    Serial.print("Fit Chosen: ");
-    Serial.println(fit);
+    Serial.print("Fit Chosen: Exponential");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -149,8 +144,8 @@ void setup() {
       
     }
     delay(3000);
-    double px[totalPoints];
-    double py[totalPoints];
+     px = new double[totalPoints];
+     py = new double[totalPoints];
     for (unsigned int i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
@@ -179,9 +174,7 @@ void setup() {
   }
   // Logarithmic
   else if (fitChoice == 4) {
-    fit = "Logarithmic";
-    Serial.print("Fit Chosen: ");
-    Serial.println(fit);
+    Serial.print("Fit Chosen: Logarithmic");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -201,8 +194,8 @@ void setup() {
       
     }
     delay(3000);
-    double px[totalPoints];
-    double py[totalPoints];
+     px = new double[totalPoints];
+     py = new double[totalPoints];
     for (unsigned int i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
@@ -229,9 +222,7 @@ void setup() {
   }
   // Power
   else if (fitChoice == 5) {
-    fit = "Power";
-    Serial.print("Fit Chosen: ");
-    Serial.println(fit);
+    Serial.print("Fit Chosen: Power");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -251,8 +242,8 @@ void setup() {
       
     }
     delay(3000);
-    double px[totalPoints];
-    double py[totalPoints];
+     px = new double[totalPoints];
+     py = new double[totalPoints];
     for (unsigned int i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
@@ -283,6 +274,10 @@ void setup() {
     delay(2000);
     setup();  
   }
+
+  delete[] px;
+  delete[] py;
+  // LOAD EEPROM
   
 }
 
