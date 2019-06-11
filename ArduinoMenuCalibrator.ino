@@ -10,6 +10,286 @@ char inputSeveral[buffSize]; // space for 31 chars and a terminator
 
 byte maxChars = 12; // a shorter limit to make it easier to see what happens
                    //  if too many chars are entered
+String fit;
+
+
+// NOTE DELAYS TEMPORARY - WHILE LOOP FOR INPUT NOT WORKING
+void setup() {
+  Serial.begin(9600);
+  Serial.println("Starting...");
+
+  Serial.println("Select fit: ");
+  Serial.println("  (1)Linear - Minimum two points");
+  Serial.println("  (2)Quadratic - Minimum three points");
+  Serial.println("  (3)Exponential - Minimum three points, no zero points");
+  Serial.println("  (4)Logarithmic - Minimum three points, not zero points");
+  Serial.println("  (5)Power - Minimum three points, no zero points");
+  Serial.println("  (0)Exit");
+  delay(3000);
+  readSeveralChars();
+  unsigned int fitChoice = atoi(inputSeveral);
+
+  // Exit
+  if (fitChoice == 0)
+  {
+      Serial.print("Exiting calibration process...");
+      delay(2000);
+      exit(0);
+  }
+  // Linear
+  if(fitChoice == 1) { 
+    fit = "Linear";
+    Serial.print("Fit Chosen: ");
+    Serial.println(fit);
+
+    Serial.print("Input total points: ");
+    delay(2000);
+    readSeveralChars();
+    unsigned int totalPoints = atoi(inputSeveral);
+    Serial.println(totalPoints);
+
+    if (totalPoints < 2)
+    {
+        Serial.print("At least two points needed for linear. Restarting calibration process...");
+        delay(2000);
+        setup();
+    }
+    else if (totalPoints == 2)
+    {
+       Serial.println("WARNING - Minimum points met. Overdefined recommended.");
+      
+    }
+    delay(3000);
+    double px[totalPoints];
+    double py[totalPoints];
+    for (unsigned int i = 0; i < totalPoints; ++i)
+    {
+      ardprintf("Input x%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      px[i] = atof(inputSeveral);
+      Serial.println(px[i]);
+      delay(1000);
+
+      ardprintf("Input y%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      py[i] = atof(inputSeveral);
+      Serial.println(py[i]);
+      delay(1000);
+    }
+    fabls_linear(totalPoints, px, py);
+  }
+  // Quadratic
+  else if (fitChoice == 2) {
+    fit = "Quadratic";
+    Serial.print("Fit Chosen: ");
+    Serial.println(fit);
+
+    Serial.print("Input total points: ");
+    delay(2000);
+    readSeveralChars();
+    unsigned int totalPoints = atoi(inputSeveral);
+    Serial.println(totalPoints);
+
+    if (totalPoints < 3)
+    {
+        Serial.print("At least three points needed for quadratic. Restarting calibration process...");
+        delay(2000);
+        setup();
+    }
+    else if (totalPoints == 3)
+    {
+       Serial.println("WARNING - Minimum points met. Overdefined recommended.");
+      
+    }
+    delay(3000);
+    double px[totalPoints];
+    double py[totalPoints];
+    for (unsigned int i = 0; i < totalPoints; ++i)
+    {
+      ardprintf("Input x%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      px[i] = atof(inputSeveral);
+      Serial.println(px[i]);
+      delay(1000);
+
+      ardprintf("Input y%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      py[i] = atof(inputSeveral);
+      Serial.println(py[i]);
+      delay(1000);
+    }
+    fabls_quad(totalPoints, px, py);
+    
+  }
+  // Exponential
+  else if (fitChoice == 3) {
+    fit = "Exponential";
+    Serial.print("Fit Chosen: ");
+    Serial.println(fit);
+
+    Serial.print("Input total points: ");
+    delay(2000);
+    readSeveralChars();
+    unsigned int totalPoints = atoi(inputSeveral);
+    Serial.println(totalPoints);
+
+    if (totalPoints < 3)
+    {
+        Serial.print("ERROR - At least three points needed for exponential. Restarting calibration process...");
+        delay(2000);
+        setup();
+    }
+    else if (totalPoints == 3)
+    {
+       Serial.println("WARNING - Minimum points met. Overdefined recommended.");
+      
+    }
+    delay(3000);
+    double px[totalPoints];
+    double py[totalPoints];
+    for (unsigned int i = 0; i < totalPoints; ++i)
+    {
+      ardprintf("Input x%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      px[i] = atof(inputSeveral);
+      Serial.println(px[i]);
+      if (px[i] == 0)
+      {
+          Serial.println("ERROR - No zero points for exponential. Restarting calibration process... ");
+          delay(2000);
+          setup();
+      }
+      delay(1000);
+
+      ardprintf("Input y%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      py[i] = atof(inputSeveral);
+      Serial.println(py[i]);
+      delay(1000);
+    }
+    fabls_exp(totalPoints, px, py);
+
+    
+  }
+  // Logarithmic
+  else if (fitChoice == 4) {
+    fit = "Logarithmic";
+    Serial.print("Fit Chosen: ");
+    Serial.println(fit);
+
+    Serial.print("Input total points: ");
+    delay(2000);
+    readSeveralChars();
+    unsigned int totalPoints = atoi(inputSeveral);
+    Serial.println(totalPoints);
+
+    if (totalPoints < 3)
+    {
+        Serial.print("At least three points needed for logarithmic. Restarting calibration process...");
+        delay(2000);
+        setup();
+    }
+    else if (totalPoints == 3)
+    {
+       Serial.println("WARNING - Minimum points met. Overdefined recommended.");
+      
+    }
+    delay(3000);
+    double px[totalPoints];
+    double py[totalPoints];
+    for (unsigned int i = 0; i < totalPoints; ++i)
+    {
+      ardprintf("Input x%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      px[i] = atof(inputSeveral);
+      Serial.println(px[i]);
+      if (px[i] == 0)
+      {
+          Serial.println("ERROR - No zero points for logarthimic. Restarting calibration process...");
+          delay(2000);
+          setup();
+      }
+      delay(1000);
+
+      ardprintf("Input y%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      py[i] = atof(inputSeveral);
+      Serial.println(py[i]);
+      delay(1000);
+    }
+    fabls_log(totalPoints, px, py);
+  }
+  // Power
+  else if (fitChoice == 5) {
+    fit = "Power";
+    Serial.print("Fit Chosen: ");
+    Serial.println(fit);
+
+    Serial.print("Input total points: ");
+    delay(2000);
+    readSeveralChars();
+    unsigned int totalPoints = atoi(inputSeveral);
+    Serial.println(totalPoints);
+
+    if (totalPoints < 3)
+    {
+        Serial.print("At least three points needed for power. Restarting calibration process...");
+        delay(2000);
+        setup();
+    }
+    else if (totalPoints == 3)
+    {
+       Serial.println("WARNING - Minimum points met. Overdefined recommended.");
+      
+    }
+    delay(3000);
+    double px[totalPoints];
+    double py[totalPoints];
+    for (unsigned int i = 0; i < totalPoints; ++i)
+    {
+      ardprintf("Input x%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      px[i] = atof(inputSeveral);
+      Serial.println(px[i]);
+      if (px[i] == 0)
+      {
+        Serial.println("ERROR - No zero points for power. Restarting calibration process...");
+        delay(2000);
+        setup();
+      }
+      delay(1000);
+
+      ardprintf("Input y%d", i+1);
+      delay(2000);
+      readSeveralChars();
+      py[i] = atof(inputSeveral);
+      Serial.println(py[i]);
+      delay(1000);
+    }
+    fabls_power(totalPoints, px, py);
+  }
+  // Invalid
+  else {
+    Serial.println("Invalid choice. Restarting calibration process...");
+    delay(2000);
+    setup();  
+  }
+  
+}
+
+
+void loop() {
+  // None
+}
 
 
 
@@ -19,17 +299,15 @@ byte maxChars = 12; // a shorter limit to make it easier to see what happens
 double alog(double x)
 {  return (x < 0) ? -log(-x) : ((x > 0) ? log(x) : 0);
 }
-// FABLS
-void fabls(unsigned int n,double *px,double *py)
+
+void fabls_linear(unsigned int n,double *px,double *py)
 {  byte mask='\x00',sign,sign2;
    unsigned int i;
    int least=-1;
    double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
    double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
    byte *f = "%f %f %f %f %f\n";
-   byte *best[] = 
-   { " linear"," quadratic","n exponential"," logarithmic"," power" };
-// Linear
+
    s1 = s2 = s3 = s4 = s = 0;
    for (i=0; i<n; i++)
    {  x = px[i];
@@ -52,7 +330,16 @@ void fabls(unsigned int n,double *px,double *py)
       mask |= '\x01';
       z[0] = s;
    }
-// Quadratic
+}
+
+void fabls_quad(unsigned int n,double *px,double *py)
+{  byte mask='\x00',sign,sign2;
+   unsigned int i;
+   int least=-1;
+   double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
+   double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
+   byte *f = "%f %f %f %f %f\n";
+   
    s1 = s2 = s3 = s4 = s5 = s6 = s7 = s = 0;
    for (i=0; i<n; i++)
    {  x = px[i];
@@ -90,7 +377,17 @@ void fabls(unsigned int n,double *px,double *py)
       mask |= '\x02';
       z[1] = s;
    }
-// Exponential
+}
+
+
+void fabls_exp(unsigned int n,double *px,double *py)
+{  byte mask='\x00',sign,sign2;
+   unsigned int i;
+   int least=-1;
+   double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
+   double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
+   byte *f = "%f %f %f %f %f\n";
+   
    s1 = s2 = s3 = s4 = s = 0;
    for (i=0; i<n; i++)
    {  x = px[i];
@@ -113,7 +410,18 @@ void fabls(unsigned int n,double *px,double *py)
       mask |= '\x04';
       z[2] = s;
    }
-// Logarithmic
+}
+
+
+
+void fabls_log(unsigned int n,double *px,double *py)
+{  byte mask='\x00',sign,sign2;
+   unsigned int i;
+   int least=-1;
+   double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
+   double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
+   byte *f = "%f %f %f %f %f\n";
+   
    s1 = s2 = s3 = s4 = s = 0;
    for (i=0; i<n; i++)
    {  x = alog(px[i]);
@@ -137,11 +445,21 @@ void fabls(unsigned int n,double *px,double *py)
       mask |= '\x08';
       z[3] = s;
    }
-// Power (points with x=0 are thrown out)
+}
+
+
+
+void fabls_power(unsigned int n,double *px,double *py)
+{  byte mask='\x00',sign,sign2;
+   unsigned int i;
+   int least=-1;
+   double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
+   double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
+   byte *f = "%f %f %f %f %f\n";
+  
    s1 = s2 = s3 = s4 = s = 0;
    for (i=0; i<n; i++)
-   {  if (!px[i]) goto NotPower;
-      x = alog(px[i]);
+   {  x = alog(px[i]);
       y = alog(py[i]);
       s1 += x;
       s2 += x * x;
@@ -161,77 +479,8 @@ void fabls(unsigned int n,double *px,double *py)
       mask |= '\x10';
       z[4] = s;
    }
-NotPower:
-   // Display function with least squared deviation
-   if (mask)
-   {  for (i=0; i<5; i++) if (mask && (1 << i)) 
-      {  least = i;
-         break;
-      }
-      if (least != -1)
-      {  for (i=(1+least); i<5; i++) 
-            if (mask && ('\x01' << i))
-               if (z[i] < z[least])
-                  least = i;
-         ardprintf("The best fit is a%s function\n",best[least]);
-      }
-   }
-   else ardprintf("Couldn't fit any of the five functions\n");
 }
 
-
-
-
-void setup() {
-  Serial.begin(9600);
-  delay(100);
-  Serial.println("Starting...");
-
-  Serial.print("Input Zero Point: ");
-  delay(2000);
-
-  readSeveralChars();
-  int zeroPoint = atoi(inputSeveral);
-  Serial.println(zeroPoint);
-
-  delay(3000);
-  Serial.print("Input total points: ");
-  delay(2000);
-
-  readSeveralChars();
-  unsigned int totalPoints = atoi(inputSeveral);
-  Serial.println(totalPoints);
-  if (totalPoints < 2)
-  {
-      Serial.print("At least 2 points needed.");
-  }
-  else
-  {
-    delay(3000);
-    double px[totalPoints];
-    double py[totalPoints];
-    for (unsigned int i = 0; i < totalPoints; ++i)
-    {
-      px[i] = i + 1;
-      ardprintf("Input point %d", i+1);
-      delay(3000);
-      readSeveralChars();
-      py[i] = atof(inputSeveral);
-      Serial.print(px[i]);
-      Serial.print(" " );
-      Serial.println(py[i]);
-      delay(500);
-    }
-    delay(2000);
-  
-    fabls(totalPoints, px, py);
-  }
-}
-
-
-void loop() {
-  // None
-}
 
 
 
