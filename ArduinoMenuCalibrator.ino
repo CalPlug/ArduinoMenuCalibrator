@@ -78,7 +78,7 @@ void setup() {
       delay(1000);
     }
     fabls_linear(totalPoints, px, py);
-    Serial.print("R = ");
+    Serial.print("r =  ");
     Serial.println(correlationCoefficient(totalPoints, px, py));
   }
   // Quadratic
@@ -122,7 +122,7 @@ void setup() {
       delay(1000);
     }
     fabls_quad(totalPoints, px, py);
-    Serial.print("R = ");
+    Serial.print("r =  ");
     Serial.println(correlationCoefficient(totalPoints, px, py));
     
   }
@@ -173,7 +173,7 @@ void setup() {
       delay(1000);
     }
     fabls_exp(totalPoints, px, py);
-    Serial.print("R = ");
+    Serial.print("r =  ");
     Serial.println(correlationCoefficient(totalPoints, px, py));
     
   }
@@ -224,7 +224,7 @@ void setup() {
       delay(1000);
     }
     fabls_log(totalPoints, px, py);
-    Serial.print("R = ");
+    Serial.print("r =  ");
     Serial.println(correlationCoefficient(totalPoints, px, py));
   }
   // Power
@@ -274,7 +274,7 @@ void setup() {
       delay(1000);
     }
     fabls_power(totalPoints, px, py);
-    Serial.print("R = ");
+    Serial.print("r =  ");
     Serial.println(correlationCoefficient(totalPoints, px, py));
   }
   // Invalid
