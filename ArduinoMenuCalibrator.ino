@@ -39,7 +39,7 @@ void setup() {
   }
   // Linear
   if(fitChoice == 1) { 
-    Serial.print("Fit Chosen: Linear");
+    Serial.println("Fit Chosen: Linear");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -78,10 +78,12 @@ void setup() {
       delay(1000);
     }
     fabls_linear(totalPoints, px, py);
+    Serial.print("R = ");
+    Serial.println(correlationCoefficient(totalPoints, px, py));
   }
   // Quadratic
   else if (fitChoice == 2) {
-    Serial.print("Fit Chosen: Quadratic");
+    Serial.println("Fit Chosen: Quadratic");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -120,11 +122,13 @@ void setup() {
       delay(1000);
     }
     fabls_quad(totalPoints, px, py);
+    Serial.print("R = ");
+    Serial.println(correlationCoefficient(totalPoints, px, py));
     
   }
   // Exponential
   else if (fitChoice == 3) {
-    Serial.print("Fit Chosen: Exponential");
+    Serial.println("Fit Chosen: Exponential");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -169,12 +173,13 @@ void setup() {
       delay(1000);
     }
     fabls_exp(totalPoints, px, py);
-
+    Serial.print("R = ");
+    Serial.println(correlationCoefficient(totalPoints, px, py));
     
   }
   // Logarithmic
   else if (fitChoice == 4) {
-    Serial.print("Fit Chosen: Logarithmic");
+    Serial.println("Fit Chosen: Logarithmic");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -219,10 +224,12 @@ void setup() {
       delay(1000);
     }
     fabls_log(totalPoints, px, py);
+    Serial.print("R = ");
+    Serial.println(correlationCoefficient(totalPoints, px, py));
   }
   // Power
   else if (fitChoice == 5) {
-    Serial.print("Fit Chosen: Power");
+    Serial.println("Fit Chosen: Power");
 
     Serial.print("Input total points: ");
     delay(2000);
@@ -267,6 +274,8 @@ void setup() {
       delay(1000);
     }
     fabls_power(totalPoints, px, py);
+    Serial.print("R = ");
+    Serial.println(correlationCoefficient(totalPoints, px, py));
   }
   // Invalid
   else {
@@ -561,3 +570,31 @@ int ardprintf(char *str, ...)
   Serial.println();
   return count + 1;
 }
+
+
+double correlationCoefficient(int n, double* x, double* y) 
+{ 
+  
+    int sumX = 0, sumY = 0, sumXY = 0; 
+    int squareSumX = 0, squareSumY = 0; 
+  
+    for (unsigned int i = 0; i < n; ++i) 
+    {  
+        sumX += x[i]; 
+  
+        sumY += y[i]; 
+  
+        sumXY += x[i] * y[i]; 
+  
+        // sum of square of array elements. 
+        squareSumX += x[i] * x[i]; 
+        squareSumY += y[i] * y[i]; 
+    } 
+  
+    // use formula for calculating correlation coefficient. 
+    double corr = (double)(n * sumXY - sumX * sumY)  
+                  / sqrt((n * squareSumX - sumX * sumX)  
+                      * (n * squareSumY - sumY * sumY)); 
+  
+    return corr; 
+} 
