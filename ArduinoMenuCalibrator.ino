@@ -5,7 +5,7 @@
 #include <stdarg.h>
 #include <Arduino.h>
 
-const byte buffSize = 32;
+const byte buffSize = 16;
 char inputSeveral[buffSize]; // space for 31 chars and a terminator
 
 byte maxChars = 12; // a shorter limit to make it easier to see what happens
@@ -14,7 +14,8 @@ byte maxChars = 12; // a shorter limit to make it easier to see what happens
 double* px;
 double* py;
 
-// NOTE DELAYS TEMPORARY - WHILE LOOP FOR INPUT NOT WORKING
+// NOTE: DELAYS TEMPORARY - WHILE LOOPS FOR INPUT NOT WORKING
+// NOTE: USING 86% MEMORY ON ARDUINO UNO - NEEDS WORK ON EFFICIENCY TO DECREASE MEMORY USAGE
 void setup() {
   Serial.begin(9600);
   Serial.println("Starting...");
@@ -22,13 +23,13 @@ void setup() {
   Serial.println("Select fit: ");
   Serial.println("  (1)Linear - Minimum two points");
   Serial.println("  (2)Quadratic - Minimum three points");
-  Serial.println("  (3)Exponential - Minimum three points, no zero points");
-  Serial.println("  (4)Logarithmic - Minimum three points, not zero points");
-  Serial.println("  (5)Power - Minimum three points, no zero points");
+  Serial.println("  (3)Exponential - Minimum three points, y != 0");
+  Serial.println("  (4)Logarithmic - Minimum three points, x != 0");
+  Serial.println("  (5)Power - Minimum three points, x != 0");
   Serial.println("  (0)Exit");
   delay(3000);
   readSeveralChars();
-  unsigned int fitChoice = atoi(inputSeveral);
+  uint8_t fitChoice = atoi(inputSeveral);
 
   // Exit
   if (fitChoice == 0)
@@ -44,8 +45,9 @@ void setup() {
     Serial.print("Input total points: ");
     delay(2000);
     readSeveralChars();
-    unsigned int totalPoints = atoi(inputSeveral);
+    uint8_t totalPoints = atoi(inputSeveral);
     Serial.println(totalPoints);
+    Serial.println("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values");
 
     if (totalPoints < 2)
     {
@@ -61,7 +63,7 @@ void setup() {
     delay(3000);
     px = new double[totalPoints];
     py = new double[totalPoints];
-    for (unsigned int i = 0; i < totalPoints; ++i)
+    for (uint8_t i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
       delay(2000);
@@ -88,7 +90,7 @@ void setup() {
     Serial.print("Input total points: ");
     delay(2000);
     readSeveralChars();
-    unsigned int totalPoints = atoi(inputSeveral);
+    uint8_t totalPoints = atoi(inputSeveral);
     Serial.println(totalPoints);
 
     if (totalPoints < 3)
@@ -105,7 +107,7 @@ void setup() {
     delay(3000);
      px = new double[totalPoints];
      py = new double[totalPoints];
-    for (unsigned int i = 0; i < totalPoints; ++i)
+    for (uint8_t i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
       delay(2000);
@@ -133,7 +135,7 @@ void setup() {
     Serial.print("Input total points: ");
     delay(2000);
     readSeveralChars();
-    unsigned int totalPoints = atoi(inputSeveral);
+    uint8_t totalPoints = atoi(inputSeveral);
     Serial.println(totalPoints);
 
     if (totalPoints < 3)
@@ -150,19 +152,13 @@ void setup() {
     delay(3000);
      px = new double[totalPoints];
      py = new double[totalPoints];
-    for (unsigned int i = 0; i < totalPoints; ++i)
+    for (uint8_t i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
       delay(2000);
       readSeveralChars();
       px[i] = atof(inputSeveral);
       Serial.println(px[i]);
-      if (px[i] == 0)
-      {
-          Serial.println("ERROR - No zero points for exponential. Restarting calibration process... ");
-          delay(2000);
-          setup();
-      }
       delay(1000);
 
       ardprintf("Input y%d", i+1);
@@ -170,6 +166,12 @@ void setup() {
       readSeveralChars();
       py[i] = atof(inputSeveral);
       Serial.println(py[i]);
+      if (py[i] == 0)
+      {
+          Serial.println("ERROR - y's cannot be zero for exponential. Restarting calibration process... ");
+          delay(2000);
+          setup();
+      }
       delay(1000);
     }
     fabls_exp(totalPoints, px, py);
@@ -184,7 +186,7 @@ void setup() {
     Serial.print("Input total points: ");
     delay(2000);
     readSeveralChars();
-    unsigned int totalPoints = atoi(inputSeveral);
+    uint8_t totalPoints = atoi(inputSeveral);
     Serial.println(totalPoints);
 
     if (totalPoints < 3)
@@ -201,7 +203,7 @@ void setup() {
     delay(3000);
      px = new double[totalPoints];
      py = new double[totalPoints];
-    for (unsigned int i = 0; i < totalPoints; ++i)
+    for (uint8_t i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
       delay(2000);
@@ -210,7 +212,7 @@ void setup() {
       Serial.println(px[i]);
       if (px[i] == 0)
       {
-          Serial.println("ERROR - No zero points for logarthimic. Restarting calibration process...");
+          Serial.println("ERROR - x's cannot be zero for logarthimic. Restarting calibration process...");
           delay(2000);
           setup();
       }
@@ -234,7 +236,7 @@ void setup() {
     Serial.print("Input total points: ");
     delay(2000);
     readSeveralChars();
-    unsigned int totalPoints = atoi(inputSeveral);
+    uint8_t totalPoints = atoi(inputSeveral);
     Serial.println(totalPoints);
 
     if (totalPoints < 3)
@@ -251,7 +253,7 @@ void setup() {
     delay(3000);
      px = new double[totalPoints];
      py = new double[totalPoints];
-    for (unsigned int i = 0; i < totalPoints; ++i)
+    for (uint8_t i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
       delay(2000);
@@ -260,7 +262,7 @@ void setup() {
       Serial.println(px[i]);
       if (px[i] == 0)
       {
-        Serial.println("ERROR - No zero points for power. Restarting calibration process...");
+        Serial.println("ERROR - x's cannot be zero for power. Restarting calibration process...");
         delay(2000);
         setup();
       }
@@ -286,8 +288,10 @@ void setup() {
 
   delete[] px;
   delete[] py;
-  // LOAD EEPROM
   
+  // LOAD EEPROM
+  // Once input points are given and regression data is returned
+  // prompt user to send new calibration values to EEPROM
 }
 
 
@@ -330,9 +334,21 @@ void fabls_linear(unsigned int n,double *px,double *py)
       }
       s = sqrt(s / r);
       sign = (a1 < 0) ? '-' : '+';
-      ardprintf("Linear:      y = (%f) x %c %f; s = %f\n",a2,sign,fabs(a1),s);
+      ardprintf("Linear:   y = (%f) x %c %f; s = %f\n",a2,sign,fabs(a1),s);
       mask |= '\x01';
       z[0] = s;
+   }
+
+   Serial.print("X");
+   Serial.print("         Y");
+   Serial.print("         Calculated Y");
+   Serial.println("     PercentError%");
+   for (unsigned int i = 0; i < n; ++i)
+   {
+      double y = (a2) * px[i] + (a1);
+      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      double error = ((y - py[i])/py[i])*100;
+      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
    }
 }
 
@@ -381,6 +397,18 @@ void fabls_quad(unsigned int n,double *px,double *py)
       mask |= '\x02';
       z[1] = s;
    }
+
+   Serial.print("X");
+   Serial.print("         Y");
+   Serial.print("         Calculated Y");
+   Serial.println("     PercentError%");
+   for (unsigned int i = 0; i < n; ++i)
+   {
+      double y = (a2) * px[i] + (a1);
+      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      double error = ((y - py[i])/py[i])*100;
+      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
+   }
 }
 
 
@@ -414,6 +442,18 @@ void fabls_exp(unsigned int n,double *px,double *py)
       mask |= '\x04';
       z[2] = s;
    }
+
+   Serial.print("X");
+   Serial.print("         Y");
+   Serial.print("         Calculated Y");
+   Serial.println("     PercentError%");
+   for (unsigned int i = 0; i < n; ++i)
+   {
+      double y = (a2) * px[i] + (a1);
+      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      double error = ((y - py[i])/py[i])*100;
+      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
+   }
 }
 
 
@@ -445,9 +485,21 @@ void fabls_log(unsigned int n,double *px,double *py)
       }
       s = sqrt(s / r);
       sign = (a1 < 0) ? '-' : '+';
-      ardprintf("Logarithmic: y = (%f) ln(x) %c %f; s = %f\n",a2,sign,fabs(a1),s);
+      ardprintf("Logarithmic:   y = (%f) ln(x) %c %f; s = %f\n",a2,sign,fabs(a1),s);
       mask |= '\x08';
       z[3] = s;
+   }
+
+   Serial.print("X");
+   Serial.print("         Y");
+   Serial.print("         Calculated Y");
+   Serial.println("     PercentError%");
+   for (unsigned int i = 0; i < n; ++i)
+   {
+      double y = (a2) * px[i] + (a1);
+      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      double error = ((y - py[i])/py[i])*100;
+      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
    }
 }
 
@@ -479,9 +531,21 @@ void fabls_power(unsigned int n,double *px,double *py)
       }
       s = sqrt(s / r);
       sign = (a1 < 0) ? '-' : '+';
-      ardprintf("Power:       y = (%f) x ^ (%f); s = %f\n",a1,a2,s);
+      ardprintf("Power:   y = (%f) x ^ (%f); s = %f\n",a1,a2,s);
       mask |= '\x10';
       z[4] = s;
+   }
+
+   Serial.print("X");
+   Serial.print("         Y");
+   Serial.print("         Calculated Y");
+   Serial.println("     PercentError%");
+   for (unsigned int i = 0; i < n; ++i)
+   {
+      double y = (a2) * px[i] + (a1);
+      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      double error = ((y - py[i])/py[i])*100;
+      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
    }
 }
 
@@ -572,29 +636,28 @@ int ardprintf(char *str, ...)
 }
 
 
+// Extra goodness of fit information
 double correlationCoefficient(int n, double* x, double* y) 
 { 
   
     int sumX = 0, sumY = 0, sumXY = 0; 
     int squareSumX = 0, squareSumY = 0; 
   
-    for (unsigned int i = 0; i < n; ++i) 
-    {  
-        sumX += x[i]; 
+    for (int i = 0; i < n; i++) 
+    { 
+         
+        sumX = sumX + x[i]; 
+        sumY = sumY + y[i]; 
+        sumXY = sumXY + x[i] * y[i]; 
   
-        sumY += y[i]; 
-  
-        sumXY += x[i] * y[i]; 
-  
-        // sum of square of array elements. 
-        squareSumX += x[i] * x[i]; 
-        squareSumY += y[i] * y[i]; 
+        
+        squareSumX = squareSumX + x[i] * x[i]; 
+        squareSumY = squareSumY + y[i] * y[i]; 
     } 
-  
-    // use formula for calculating correlation coefficient. 
-    double corr = (double)(n * sumXY - sumX * sumY)  
+   
+    double r = (double)(n * sumXY - sumX * sumY)  
                   / sqrt((n * squareSumX - sumX * sumX)  
                       * (n * squareSumY - sumY * sumY)); 
   
-    return corr; 
+    return r; 
 } 
