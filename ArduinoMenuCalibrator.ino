@@ -20,6 +20,7 @@ void setup() {
   Serial.begin(9600);
   Serial.println("Starting...");
 
+  // Menu select for function to fit against
   Serial.println("Select fit: ");
   Serial.println("  (1)Linear - Minimum two points");
   Serial.println("  (2)Quadratic - Minimum three points");
@@ -49,6 +50,7 @@ void setup() {
     Serial.println(totalPoints);
     Serial.println("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values");
 
+    // Error and warning checks for minimum poiints
     if (totalPoints < 2)
     {
         Serial.print("At least two points needed for linear. Restarting calibration process...");
@@ -61,8 +63,8 @@ void setup() {
       
     }
     delay(3000);
-    px = new double[totalPoints];
-    py = new double[totalPoints];
+    px = new double[totalPoints]; // Load x's into array
+    py = new double[totalPoints]; // Load y's into array
     for (uint8_t i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
@@ -79,9 +81,9 @@ void setup() {
       Serial.println(py[i]);
       delay(1000);
     }
-    fabls_linear(totalPoints, px, py);
+    fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator 
     Serial.print("r =  ");
-    Serial.println(correlationCoefficient(totalPoints, px, py));
+    Serial.println(correlationCoefficient(totalPoints, px, py)); // calcuate and print correlation coefficient
   }
   // Quadratic
   else if (fitChoice == 2) {
