@@ -6,16 +6,17 @@
 #include <Arduino.h>
 
 const byte buffSize = 16;
-char inputSeveral[buffSize]; // space for 31 chars and a terminator
+char inputSeveral[buffSize]; // schar array for input function below
+                             // space for 16 chars and a terminator
 
 byte maxChars = 12; // a shorter limit to make it easier to see what happens
                    //  if too many chars are entered
 
-double* px;
-double* py;
+double* px;       // dynamic array for x's (DAQ system values)
+double* py;       // dynamic array for y's (calibrated values)
 
 // NOTE: DELAYS TEMPORARY - WHILE LOOPS FOR INPUT NOT WORKING
-// NOTE: USING 86% MEMORY ON ARDUINO UNO - NEEDS WORK ON EFFICIENCY TO DECREASE MEMORY USAGE
+// NOTE: USING 86% MEMORY ON ARDUINO UNO 
 void setup() {
   Serial.begin(9600);
   Serial.println("Starting...");
@@ -24,7 +25,7 @@ void setup() {
   Serial.println("Select fit: ");
   Serial.println("  (1)Linear - Minimum two points");
   Serial.println("  (2)Quadratic - Minimum three points");
-  Serial.println("  (3)Exponential - Minimum three points, y != 0");
+  Serial.println("  (3)Exponential - Minimum three points, y != 0");  // Double check restrictions on exp, log, power
   Serial.println("  (4)Logarithmic - Minimum three points, x != 0");
   Serial.println("  (5)Power - Minimum three points, x != 0");
   Serial.println("  (0)Exit");
@@ -43,10 +44,10 @@ void setup() {
   if(fitChoice == 1) { 
     Serial.println("Fit Chosen: Linear");
 
-    Serial.print("Input total points: ");
-    delay(2000);
+    Serial.print("Input total points: ");   // prompt user
+    delay(2000);                            // delay for input (while (Serial.avaiable()) causes char array to become zero and instantly changes input variable to 0)
     readSeveralChars();
-    uint8_t totalPoints = atoi(inputSeveral);
+    uint8_t totalPoints = atoi(inputSeveral);   // converts char array to int
     Serial.println(totalPoints);
     Serial.println("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values");
 
@@ -65,9 +66,9 @@ void setup() {
     delay(3000);
     px = new double[totalPoints]; // Load x's into array
     py = new double[totalPoints]; // Load y's into array
-    for (uint8_t i = 0; i < totalPoints; ++i)
+    for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
     {
-      ardprintf("Input x%d", i+1);
+      ardprintf("Input x%d", i+1);        // printf for serial, function implemented below
       delay(2000);
       readSeveralChars();
       px[i] = atof(inputSeveral);
@@ -168,7 +169,7 @@ void setup() {
       readSeveralChars();
       py[i] = atof(inputSeveral);
       Serial.println(py[i]);
-      if (py[i] == 0)
+      if (py[i] == 0)         // Catch zero point errors
       {
           Serial.println("ERROR - y's cannot be zero for exponential. Restarting calibration process... ");
           delay(2000);
@@ -285,9 +286,10 @@ void setup() {
   else {
     Serial.println("Invalid choice. Restarting calibration process...");
     delay(2000);
-    setup();  
+    setup();  // Restart, jumps backs to beginning
   }
 
+  // deallocation (move to after EEPROM)
   delete[] px;
   delete[] py;
   
