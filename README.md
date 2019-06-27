@@ -1,7 +1,9 @@
-# ArduinoMenuCalibrator ![build passing]
-(https://img.shields.io/circleci/project/github/badges/shields/master.svg)
+![Calit2](https://upload.wikimedia.org/wikipedia/en/2/25/Calit2.png)
 
-## California Plug Load Research Center (CalPlug)
+# ArduinoMenuCalibrator 
+![build passing](https://img.shields.io/circleci/project/github/badges/shields/master.svg)
+
+## California Plug Load Research Center (CalPlug), California Institute of Telecommunications and Information Technology (Calit2)
 
 ##### Code development by Bryan Karmini and Avinash Pai
 ##### University of California, Irvine (UC Irvine) 
