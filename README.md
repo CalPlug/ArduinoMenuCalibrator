@@ -12,4 +12,4 @@ Copyright The Regents of the University of California, 2019
 
 Built with open source software and released into the public domain under GNU License for permissive use.  
 
-Description:  This script uses regression to determine fitting coefficients for linear, quadratic, power, exponential and logarithmic functions.  After reading values it will allow the saving of fitting cofficients into onboard EEPROM.  It has been tested on Arduino Uno.
+Description:  This menu driven script provides the capability for using regression to determine fitting coefficients for linear, quadratic, power, exponential and logarithmic functions from input data.  It can be used for sensor calibration.  After reading values it will allow the saving of fitting cofficients into onboard EEPROM.  It has been tested on Arduino Uno.
