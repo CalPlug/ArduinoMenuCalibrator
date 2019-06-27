@@ -21,6 +21,7 @@ char inputSeveral[buffSize]; // schar array for input function below
 #define EEPROMVariableBufferSize 25 
 #define EEPROMVariableLength 12
 #define EEPROMDecimalPrecision 8  
+int EEPROMCurrentPosition = 0;
 int offsetInEEPROM = 0;  // offset address to begin writing in EEPROM
 bool reportConfigured = 1; 
 bool reportedConfiguredStatus = 1;  // updated status for configure
@@ -392,7 +393,7 @@ void fabls_linear(unsigned int n,double *px,double *py)
       itoa(expressionTotalTerms, expressionTerms, 3);
       dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
       dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
-      WriteCalEEPROM(reportConfigured, offsetInEEPROM, configuredStatus, "sensor1", "linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0");  // values to write into EEPROM, variables unused up to 10 are reported as "0" 
+      WriteCalEEPROM(reportConfigured, offsetInEEPROM, configuredStatus, "sensor1", "linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0" 
    }
    
    delay(3000);
@@ -490,7 +491,7 @@ void fabls_quad(unsigned int n,double *px,double *py)
       dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
       dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared); // Leave room for too large numbers!
-      WriteCalEEPROM(1, 0, configuredStatus, "sensor1", "quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0");
+      WriteCalEEPROM(1, 0, configuredStatus, "sensor1", "quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);
    }
 }
 
@@ -851,7 +852,7 @@ double safeDiv(double numerator, double denominator)
 }
 
 
-void WriteCalEEPROM(bool update_configured_status, int eepromoffset, char* towrite_configured, char* towrite_value_name, char* towrite_type_of_regression, char* expression_terms, char* towrite_inverted, char* towrite_cal_term1, char* towrite_cal_term2, char* towrite_cal_term3, char* towrite_cal_term4, char* towrite_cal_term5, char* towrite_cal_term6, char* towrite_cal_term7, char* towrite_cal_term8, char* towrite_cal_term9, char* towrite_cal_term10){
+void WriteCalEEPROM(bool update_configured_status, int eepromoffset, char* towrite_configured, char* towrite_value_name, char* towrite_type_of_regression, char* expression_terms, char* towrite_inverted, char* towrite_cal_term1, char* towrite_cal_term2, char* towrite_cal_term3, char* towrite_cal_term4, char* towrite_cal_term5, char* towrite_cal_term6, char* towrite_cal_term7, char* towrite_cal_term8, char* towrite_cal_term9, char* towrite_cal_term10, int &EEPROMReadLocation){
   //Build EEPROM value string from inputs to the function, make the changes before calling the function to update the RAM copies of: configured, cal_1_a, cal_1_m, cal_1_b, cal_2_a, cal_2_m, cal_2_b, cal_3_a,  cal_3_m, cal_3_b, cal_batt_m, cal_batt_b
   //EEPROMReset();  //perform EEPROM clear before updating new values (disabled right now in use)
   char datatowrite[150] = {};  //EEPROM entry character array holder
@@ -925,20 +926,23 @@ void WriteCalEEPROM(bool update_configured_status, int eepromoffset, char* towri
   Serial.println(datatowrite);
   Serial.println();
   Serial.println("Saving to EEPROM");
-  save_data(eepromoffset, datatowrite);  //load the final values into EERPOM
+  EEPROMReadLocation = save_data(eepromoffset, datatowrite);  //load the final values into EERPOM
   delay (10);
   Serial.println("EEPROM Update completed...");
 } //end of WriteCalEEPROM function
 
-void save_data(int offset, char* datalocal){
+int save_data(int offset, char* datalocal){
   //Mechanism called by another function to write pre-packaged data to the EEPROM
   Serial.println("Call to write data to EEPROM");
   EEPROM.begin(); //this takes 0 arguments for AVR, but a value of 512 for ESP32
+  int index = 0;
   for (int i = offset; i < strlen(datalocal); ++i){
     EEPROM.write(i, (int)datalocal[i]);
     delay(1);
+    index = i;
   }
   //EEPROM.commit(); //Not required for AVR, only ESP32
   Serial.println("Write data complete");
+  return index;  // last EEPROM address written
   delay(10);
 } //end of save_data function define
