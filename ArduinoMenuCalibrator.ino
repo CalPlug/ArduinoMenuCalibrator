@@ -170,6 +170,10 @@ void setup() {
     delay(3000);
      px = new double[totalPoints];
      py = new double[totalPoints];
+    //int arraySizex = sizeof(xp) / sizeof(px[0]); //EXAMPLE SIZE DETERMINATION
+    //for (int x=0; x < arraySize; x++)
+       //px[x] = 0;  //zero the array
+     
     for (uint8_t i = 0; i < totalPoints; ++i)
     {
       ardprintf("Input x%d", i+1);
