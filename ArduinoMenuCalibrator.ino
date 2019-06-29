@@ -496,6 +496,160 @@ void fabls_quad(unsigned int n,double *px,double *py)
    }
 }
 
+void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total number of points, order of regression, x-pints, y-pounts)
+{ 
+  //Based on example with degree 3 polynomial regression:  https://rosettacode.org/wiki/Polynomial_regression#C, https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/
+  
+    int i,j,k;
+    double X[2*n+1];                        //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+    for (i=0;i<2*n+1;i++)
+    {
+        X[i]=0;
+        for (j=0;j<N;j++)
+            X[i]=X[i]+pow(px[j],i);        //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+    }
+    double B[n+1][n+2],a[n+1];            //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
+    for (i=0;i<=n;i++)
+        for (j=0;j<=n;j++)
+            B[i][j]=X[i+j];            //Build the Normal matrix by storing the corresponding coefficients at the right positions except the last column of the matrix
+    double Y[n+1];                    //Array to store the values of sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
+    for (i=0;i<n+1;i++)
+    {    
+        Y[i]=0;
+        for (j=0;j<N;j++)
+        Y[i]=Y[i]+pow(px[j],i)*py[j];        //consecutive positions will store sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
+    }
+    for (i=0;i<=n;i++)
+        B[i][n+1]=Y[i];                //load the values of Y as the last column of B(Normal Matrix but augmented)
+    n=n+1;                //n is made n+1 because the Gaussian Elimination part below was for n equations, but here n is the degree of polynomial and for n degree we get n+1 equations
+    Serial.println(F("\nThe Normal(Augmented Matrix) is as follows:\n"));    
+    for (i=0;i<n;i++)            //print the Normal-augmented matrix
+    {
+        for (j=0;j<=n;j++)
+        {
+            Serial.print(B[i][j]);
+            Serial.print("  ");
+        }
+            Serial.println();
+    }    
+    for (i=0;i<n;i++)                    //From now Gaussian Elimination starts(can be ignored) to solve the set of linear equations (Pivotisation)
+        for (k=i+1;k<n;k++)
+            if (B[i][i]<B[k][i])
+                for (j=0;j<=n;j++)
+                {
+                    double temp=B[i][j];
+                    B[i][j]=B[k][j];
+                    B[k][j]=temp;
+                }
+    
+    for (i=0;i<n-1;i++)            //loop to perform the gauss elimination
+        for (k=i+1;k<n;k++)
+            {
+                double t=B[k][i]/B[i][i];
+                for (j=0;j<=n;j++)
+                    B[k][j]=B[k][j]-t*B[i][j];    //make the elements below the pivot elements equal to zero or elimnate the variables
+            }
+    for (i=n-1;i>=0;i--)                //back-substitution
+    {                        //x is an array whose values correspond to the values of x,y,z..
+        a[i]=B[i][n];                //make the variable to be calculated equal to the rhs of the last equation
+        for (j=0;j<n;j++)
+            if (j!=i)            //then subtract all the lhs values except the coefficient of the variable whose value is being calculated
+                a[i]=a[i]-B[i][j]*a[j];
+        a[i]=a[i]/B[i][i];            //now finally divide the rhs by the coefficient of the variable to be calculated
+    }
+    
+    Serial.println(F("\nThe values of the coefficients are as follows:\n"));
+    for (i=0;i<n;i++)
+    {
+        // Print the values of x^0,x^1,x^2,x^3,....    
+        Serial.print("x^"); 
+        Serial.print(i, reportingPrecision); //display with 4 decimal places
+        Serial.print("=");
+        Serial.println(a[i]); //end of line statement
+    }
+    Serial.println(); //Break between segments
+
+    Serial.print(F("Hence the fitted Polynomial is given by:\n y ="));
+    for (i=0;i<n;i++)
+    {
+      if (i == 0) //supress the initial + sign in the display
+         {
+          Serial.print(" ("); 
+         }
+      else
+         {
+          Serial.print(" + ("); 
+         }
+      Serial.print(a[i],reportingPrecision); //display with 4 decimal places
+      Serial.print(")");
+      Serial.print("x^");
+      Serial.print(i);
+    }
+    Serial.println(); //Break between segments
+
+   Serial.print("X");
+   Serial.print("         Y");
+   Serial.print("         Calculated Y");
+   Serial.println("     PercentError%");
+   for (unsigned int i = 0; i < N; ++i) //for all points
+   {
+    double y = 0; //set each term's callulation initialized at 0
+    for (int q=0; q<n; q++)  //for all terms
+      { 
+        y = y + a[q]*pow(px[i],q); 
+      }
+
+      pyregress[i] = y;
+      
+      double error = ((y - py[i])/py[i])*100;
+      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
+   }
+   
+   double rSquaredReturn;
+   double adjRSquaredReturn;
+   determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
+   Serial.print(F("r^2 = "));
+   Serial.println(rSquaredReturn);
+   Serial.print(F("adjusted r^2 = "));
+   Serial.println(adjRSquaredReturn); 
+    
+
+     if(reportToEEPROM == 1)
+   {
+      int expressionTotalTerms = n;
+      double regressionterms[expressionTotalTerms]; //holder for inverted calculated values
+      bool reportedConfiguredStatus = 1;  // updated status for configure
+      char invertedStatus[2];
+      char configuredStatus[2];
+      char expressionTerms[2];
+      char* term[expressionTotalTerms];
+      if(reportInvertedValues == 1)
+      {
+          for (int q=0; q<expressionTotalTerms; q++)
+          {
+          regressionterms[q] = (1/(a[i]));
+          }
+      }
+      itoa(reportInvertedValues, invertedStatus, 2);
+      itoa(reportedConfiguredStatus, configuredStatus, 2);
+      itoa(expressionTotalTerms, expressionTerms, 2);
+      
+      for (int q=0; q<10; q++) //max terms of 10 can be accomodated in the EEPROM
+      {
+        if (q<expressionTotalTerms) //if the expression is less than total terms
+        {
+          dtostrf(a[q], EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); // fill in available terms
+        }
+        else
+        {
+          dtostrf(0, EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); //fill in zeros for remaining terms up to the max terms of 10 total in the EEPROM format
+        }
+      }
+      //NOTE:  need to set up a case structure to accomodate to 10th order
+      WriteCalEEPROM(1, 0, configuredStatus, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);
+   }
+}
+
 
 void fabls_exp(unsigned int n,double *px,double *py)
 {  
