@@ -359,6 +359,12 @@ void fabls_linear(unsigned int n,double *px,double *py)
    Serial.print(F("         Calculated Y"));
    Serial.print(F("       Absolute Error"));
    Serial.println(F("     PercentError%"));
+   
+   double averagepercenterror;
+   double averagepercenterrorHolder[n];
+   double averageabsoluteerror;
+   double averageabsoluteerrorHolder[n];
+   
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = (a2) * px[i] + (a1);
@@ -368,7 +374,14 @@ void fabls_linear(unsigned int n,double *px,double *py)
       
       double error = safeDiv((y - py[i]), py[i])*100.0;
       ardprintf(reportingPrecision, "%f      %f      %f                %f            %f", px[i], py[i], y, absoluteError, error);
+      averagepercenterrorHolder [i] = error; //save into array during calculation
+      averageabsoluteerrorHolder[i] = absoluteError;  //save into array during calculation
+      
    }
+
+  averageabsoluteerror = averagecalc(n, averageabsoluteerrorHolder); //calculate absolute error average
+  averagepercenterror = averagecalc(n, averagepercenterrorHolder); //calculate absolute error average
+  
    double rSquaredReturn;
    double adjRSquaredReturn;
    determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
@@ -498,6 +511,7 @@ void fabls_quad(unsigned int n,double *px,double *py)
 
 void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total number of points, order of regression, x-pints, y-pounts)
 { 
+  
   //Based on example with degree 3 polynomial regression:  https://rosettacode.org/wiki/Polynomial_regression#C, https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/
   
     int i,j,k;
@@ -593,7 +607,7 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
    Serial.println("     PercentError%");
    for (unsigned int i = 0; i < N; ++i) //for all points
    {
-    double y = 0; //set each term's callulation initialized at 0
+    double y = 0; //set each term's calculation initialized at 0
     for (int q=0; q<n; q++)  //for all terms
       { 
         y = y + a[q]*pow(px[i],q); 
@@ -1006,6 +1020,18 @@ double safeDiv(double numerator, double denominator)
     }
 }
 
+double averagecalc(int len, double *values)
+{
+   int index,total;
+   total = 0; //Initialize the total accumulator
+   
+   for(index = 0; index < len; index++) 
+   {
+      total += values[index];
+   }
+   return (total/(float)len);
+
+}
 
 void WriteCalEEPROM(bool update_configured_status, int eepromoffset, char* towrite_configured, char* towrite_value_name, char* towrite_type_of_regression, char* expression_terms, char* towrite_inverted, char* towrite_cal_term1, char* towrite_cal_term2, char* towrite_cal_term3, char* towrite_cal_term4, char* towrite_cal_term5, char* towrite_cal_term6, char* towrite_cal_term7, char* towrite_cal_term8, char* towrite_cal_term9, char* towrite_cal_term10, int &EEPROMReadLocation){
   //Build EEPROM value string from inputs to the function, make the changes before calling the function to update the RAM copies of: configured, cal_1_a, cal_1_m, cal_1_b, cal_2_a, cal_2_m, cal_2_b, cal_3_a,  cal_3_m, cal_3_b, cal_batt_m, cal_batt_b
