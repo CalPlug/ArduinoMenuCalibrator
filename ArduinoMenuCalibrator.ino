@@ -4,6 +4,7 @@
 //Released under GNU Licence, Copyright (2019) Regents of the University of California 
 
 
+
 #include <math.h>
 #include <EEPROM.h>                      
 #define ARDBUFFER 16
@@ -1379,5 +1380,3 @@ generalOperation();  //run the calibration system program as a single instance t
   delete[] py;
   delete[] pyregress;
 }
-
-
