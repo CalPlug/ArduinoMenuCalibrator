@@ -1,5 +1,9 @@
-// Arduino based Regression calibration Utility
-//Coding by  Avinash Pai with contributions cited.
+// Arduino Based Multi-form Least-Squares Regression Calibration Utility
+//Development by Avinash Pai and Bryan Karimi with component contributions cited.
+//Note: This program uses cited numeric calculation methods developed in part or in whole by other contributers.  The developers of this utility thank these authors for helping us develop this utility!
+//Released under GNU Licence, Copyright (2019) Regents of the University of California 
+
+
 #include <math.h>
 #include <EEPROM.h>                      
 #define ARDBUFFER 16
@@ -17,6 +21,7 @@ char inputSeveral[buffSize]; // schar array for input function below
 #define reportingPrecision 4 
 
 //EEPROM Configuration Settings
+//Allows the output to be written to the EEPROM in a common format that can be extended on in multiple writes.  An initial flag is used as a quick test for readback to verify if valud values have been already pusghed to the EEPROM.  on the second value set, this write is supressed with the EEPROM offset provided so the values in the EEPROM for all sensors are sequenctial.
 #define reportToEEPROM 1  // enable this, make value equal to 1 to allow recording values to the EEPROM after regression
 #define reportInvertedValues 0  //  store values in EEPROM as the inverse, often used for very small decimals
 #define EEPROMVariableBufferSize 25 
@@ -44,10 +49,11 @@ void setup() {
   // Menu select for function to fit against
   Serial.println(F("Select fit: "));
   Serial.println(F("  (1)Linear - Minimum two points"));
-  Serial.println(F("  (2)Quadratic - Minimum three points"));
+  Serial.println(F("  (2)Quadratic - Minimum three points")); //Specific commonly used sub-form of the general polynomial case.
   Serial.println(F("  (3)Exponential - Minimum three points, y != 0"));  // Double check restrictions on exp, log, power
   Serial.println(F("  (4)Logarithmic - Minimum three points, x != 0"));
   Serial.println(F("  (5)Power - Minimum three points, x != 0"));
+  Serial.println(F("  (6)General-Form Polynomial - Minimum points = equation order")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
   Serial.println(F("  (0)Exit"));
   delay(3000);
   readSeveralChars();
@@ -317,9 +323,7 @@ void loop() {
 }
 
 
-
-
-// https://forum.arduino.cc/index.php?topic=96292.0
+// https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
 // Fit Analysis By Least Squares 
 double alog(double x)
 {  return (x < 0) ? -log(-x) : ((x > 0) ? log(x) : 0);
@@ -515,8 +519,7 @@ void fabls_quad(unsigned int n,double *px,double *py)
 
 void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total number of points, order of regression, x-pints, y-pounts)
 { 
-  
-  //Based on example with degree 3 polynomial regression:  https://rosettacode.org/wiki/Polynomial_regression#C, https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/
+//Based on polynomial regression examples:  https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/ (Manas Sharma, 2015) with elements of https://rosettacode.org/wiki/Polynomial_regression#C/ GSL Library 
   
     int i,j,k;
     double X[2*n+1];                        //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
@@ -843,9 +846,6 @@ void fabls_power(unsigned int n,double *px,double *py)
    Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
 }
 
-
-
-
 void readSeveralChars() {
 
   // this reads all the characters in the input buffer
@@ -1131,3 +1131,53 @@ int save_data(int offset, char* datalocal){
   return index;  // last EEPROM address written
   delay(10);
 } //end of save_data function define
+
+double readSensorInputMedian(int inputpin, int readcycles, bool enabSensorReadDelay, bool enabavgSensorReadDelay, int sensorReadDelay, int avgsensorReadDelay){  //input pin for analog signal, number of median reads to average, enable delays for median reads, enable delay for average reads, delay value between each median read, delay value between each average reading
+  //performs multiple median reads then performs an average then performs a calibration from an analog input
+  double middle_holder = 0;
+  for (int i=0; i<readcycles; i++){
+      double middle = 0;
+      int a, b, c; //holders for the raw ADC sensor reads
+      //Read sensor 3 sequential times
+      a = analogRead(inputpin);
+      if (enabSensorReadDelay=!0){
+          delay(sensorReadDelay);
+      }
+      b = analogRead(inputpin);
+      if (enabSensorReadDelay!=0){
+          delay(sensorReadDelay);
+      }
+      c = analogRead(inputpin);
+      //Perform median filter for returned first sensor read
+      if ((a <= b) && (a <= c)) {
+          middle = (b <= c) ? b : c;
+      } 
+      else if ((b <= a) && (b <= c)) {
+          middle = (a <= c) ? a : c;
+      } 
+      else {
+          middle = (a <= b) ? a : b;
+      }
+      //take sums for each cycle run, holder for the summation operation with the averaging loops
+      middle_holder = (middle_holder+middle); //take current read median and add it to the past reads, in prep to perform average
+      if (enabavgSensorReadDelay!=0){
+         delay (avgsensorReadDelay);
+      }    
+ }
+ return (((middle_holder/(double)readcycles))); //return calculated average of median read values
+}
+
+double readSensorInputSimpleAverage(int inputpin, int readcycles, bool enabavgSensorReadDelay, int avgsensorReadDelay){  //input pin for analog signal, number of direct reads to average, enable delay for average reads, delay value between each average reading
+  //function performs a simple average based on a number of reads from an analog input
+  double holder = 0;
+  for (int i=0; i<readcycles; i++){
+      int a= 0; //holder for the raw ADC sensor reads
+      unsigned long holder = 0; //holder for the sum calculation
+      a = analogRead(inputpin);    
+      holder = (holder+a); //take current read median and add it to the past reads, in prep to perform average
+      if (enabavgSensorReadDelay!=0){
+         delay (avgsensorReadDelay);
+      }
+ }
+ return (((holder/(double)readcycles))); //return calculated average of median read values
+}
