@@ -808,7 +808,7 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
 
   Serial.println(F("Saving Header info to EEPROM"));
   int EEPROMReadLocation = save_data(EEPROMFirstaddress, datatowrite);  //load the final values into EERPOM, use the program defined value as the inital offset from EEPROM start
-  Serial.println(F("Length of Header: "));
+  Serial.print(F("Length of Header: "));
   Serial.print(EEPROMReadLocation);
   Serial.println();
   delay (10);
