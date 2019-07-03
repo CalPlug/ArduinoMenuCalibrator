@@ -13,6 +13,8 @@
 #define buffSize 16
 char inputSeveral[buffSize]; // schar array for input function below
                              // space for 16 chars and a terminator
+const unsigned int MAX_INPUT = ARDBUFFER;//characters in input buffer for serial input
+static unsigned int input_pos = 0;
 
 #define maxChars 12 // a shorter limit to make it easier to see what happens
                    //  if too many chars are entered
@@ -589,8 +591,8 @@ void fabls_power(unsigned int n,double *px,double *py)
    Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
 }
 
-void readSeveralChars() {
-
+int readSeveralChars() {
+int notendofline = 1;
   // this reads all the characters in the input buffer
   // if there are too many for the inputSeveral array the extra chars will be lost
 
@@ -606,6 +608,12 @@ void readSeveralChars() {
       }                     //   dumped into the last array element which will
       //   be overwritten by the string terminator
       inputSeveral[ndx] = Serial.read();
+      //need to add ignore newline (ASCII 13 as well)
+      if (inputSeveral[ndx] == 10) //read newline escape character, this must be active int he terminal for this escape feature to work!
+       {
+         notendofline=0;
+         inputSeveral[ndx] = 0; //terminate string with a null
+       }
       ndx ++;
 
     }
@@ -616,7 +624,7 @@ void readSeveralChars() {
     inputSeveral[ndx] = 0; // add a zero terminator to mark the end of the string
   }
 
-
+return notendofline;
 
 }
 
@@ -1098,26 +1106,35 @@ double readSensorInputSimpleAverage(int inputpin, int readcycles, bool enabavgSe
  return (((holder/(double)readcycles))); //return calculated average of median read values
 }
 
-void generalOperation(){ //equivelant to a main function, basica program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
-  
-  // Menu select for function to fit against
-  Serial.println();
-  Serial.println();
-  Serial.println(F("******Main Menu******"));
-  Serial.println();
-  Serial.println(F("Select Regression Fitting Relationship: "));
-  Serial.println(F("  (1)Linear - Minimum two points"));
-  Serial.println(F("  (2)Quadratic - Minimum three points")); //Specific commonly used sub-form of the general polynomial case.
-  Serial.println(F("  (3)Exponential - Minimum three points, y != 0"));  // Double check restrictions on exp, log, power
-  Serial.println(F("  (4)Logarithmic - Minimum three points, x != 0"));
-  Serial.println(F("  (5)Power - Minimum three points, x != 0"));
-  Serial.println(F("  (6)General-Form Polynomial - Minimum points = equation order")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
-  Serial.println(F("  (0)Exit"));
-  delay(3000);
-  readSeveralChars();
-  uint8_t fitChoice = atoi(inputSeveral);
+int process_data_int (const char * data) //process the serial string, for integer returns
+  {
+  // Display as a debug
+  Serial.print ("Input received: ");
+  Serial.println (data);
+  int integerreturn = atoi(inputSeveral);
+  return integerreturn;
+  }  // end of process_data
 
-  // Exit
+ float process_data_float (const char * data) //Process serial string, float return
+  {
+  // Display as a debug
+  Serial.print ("Input received: ");
+  Serial.println (data);
+  float floatreturn = atof(inputSeveral);
+  return floatreturn;
+  }  // end of process_data
+
+void flushInputSerialBuffer (char* localinputSeveral) 
+{
+  for (int i=0; i<buffSize; i++)
+  {
+   localinputSeveral[i] = 0; //flush the buffer
+  }
+  input_pos = 0; //reset the string reading position, this is global
+}
+
+void generalOperation(int fitChoice){ //equivelant to a main function, basica program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
+  
   if (fitChoice == 0)
   {
       Serial.print(F("No Entry Received, Reloading Menu..."));
@@ -1371,10 +1388,43 @@ void generalOperation(){ //equivelant to a main function, basica program operati
   // prompt user to send new calibration values to EEPROM
 }
 
+void displayFitChoiceMenu()
+{
+    //Display opening menu
+    // Menu select for function to fit against
+  Serial.println();
+  Serial.println();
+  Serial.println(F("******Main Menu******"));
+  Serial.println();
+  Serial.println(F("Select Regression Fitting Relationship: "));
+  Serial.println(F("  (1)Linear - Minimum two points"));
+  Serial.println(F("  (2)Quadratic - Minimum three points")); //Specific commonly used sub-form of the general polynomial case.
+  Serial.println(F("  (3)Exponential - Minimum three points, y != 0"));  // Double check restrictions on exp, log, power
+  Serial.println(F("  (4)Logarithmic - Minimum three points, x != 0"));
+  Serial.println(F("  (5)Power - Minimum three points, x != 0"));
+  Serial.println(F("  (6)General-Form Polynomial - Minimum points = equation order")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
+  Serial.println(F("  (0)Exit"));
+  Serial.println(F("What is your selection?: "));
+}
 
 void loop() {
-generalOperation();  //run the calibration system program as a single instance that repeats on exit.
-  // deallocation  reset array before executing new instance
+  displayFitChoiceMenu();
+  flushInputSerialBuffer(inputSeveral); 
+  delay(3000); //delay to allow buffered input to build up in this approach
+  int escapestatus = 1; //escape when new line reached
+  do
+  {
+    escapestatus= readSeveralChars(); //this is a timed based serial input, please move to better approach
+  }
+  while(escapestatus==1);
+  Serial.println();
+  Serial.print("Input Received: ");
+  Serial.println(inputSeveral);
+  
+  uint8_t SelectionfitChoice = atoi(inputSeveral);
+  generalOperation(SelectionfitChoice);  //run the calibration system program as a single instance that repeats on exit.
+  
+  // deallocation reset array before executing new instance
   delete[] px;
   delete[] py;
   delete[] pyregress;
