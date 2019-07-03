@@ -36,8 +36,8 @@ static unsigned int input_pos = 0;
 
 //global values for the EEPROM (mirrored cached version, with these being the initialization values)
 char configured_status_cached[2];
-char totalentriesread_cached[5]; 
-char eepromoffsetread_cached[5];
+char totalentriesread_cached[12]; //read field calues
+char eepromoffsetread_cached[12];  //read field calues
 
 int EEPROMCurrentPosition = 0;
 int EEPROMFirstaddress = 0; //define the offset for the first entered EEPROM value
@@ -59,6 +59,7 @@ void setup() {
   WriteDefaultEERPOM(); //run this vor a vigin chip
   #endif 
   Serial.begin(115200);
+  Serial.setTimeout(10000); //setserialtimeout
   Serial.println(F("Starting..."));
 }
 
@@ -150,17 +151,17 @@ void fabls_linear(unsigned int n,double *px,double *py)
           a1 = 1.0/(a1);
           a2 = 1.0/(a2); 
       }
-      itoa(reportInvertedValues, invertedStatus, 2);
-      itoa(reportedConfiguredStatus, configuredStatus, 2);
-      itoa(expressionTotalTerms, expressionTerms, 3);
+      itoa(reportInvertedValues, invertedStatus, 10);
+      itoa(reportedConfiguredStatus, configuredStatus, 10);
+      itoa(expressionTotalTerms, expressionTerms, 10);
       dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
       dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
-      Serial.print (F("Read in EEPROM Current length: "));
+      Serial.print (F("Read EEPROM length: "));
       Serial.println (currentoffset);
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
-      Serial.print (F("EEPROM Current length: "));
+      Serial.print (F("Written EEPROM Current length: "));
       Serial.println (currentoffset);
       WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //update the header after the last write, write in last EEPROM address location
    }
@@ -253,9 +254,9 @@ void fabls_quad(unsigned int n,double *px,double *py)
           a2 = 1/(a2); 
           a3 = 1/(a3);
       }
-      itoa(reportInvertedValues, invertedStatus, 2);
-      itoa(reportedConfiguredStatus, configuredStatus, 2);
-      itoa(expressionTotalTerms, expressionTerms, 2);
+      itoa(reportInvertedValues, invertedStatus, 10);
+      itoa(reportedConfiguredStatus, configuredStatus, 10);
+      itoa(expressionTotalTerms, expressionTerms, 10);
       dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
       dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared); // Leave room for too large numbers!
@@ -397,9 +398,9 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
           regressionterms[q] = (1/(a[i]));
           }
       }
-      itoa(reportInvertedValues, invertedStatus, 2);
-      itoa(reportedConfiguredStatus, configuredStatus, 2);
-      itoa(expressionTotalTerms, expressionTerms, 2);
+      itoa(reportInvertedValues, invertedStatus, 10);
+      itoa(reportedConfiguredStatus, configuredStatus, 10);
+      itoa(expressionTotalTerms, expressionTerms, 10);
       
       for (int q=0; q<10; q++) //max terms of 10 can be accomodated in the EEPROM
       {
@@ -790,8 +791,8 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
   char datatowrite[150] = {};  //EEPROM entry character array holder
   char totalentries[4];
   char totalOffset[5];
-  itoa(entries, totalentries, 3);  //convert the int into an entry in the char* array for the total entries in the eeprom
-  itoa(eepromoffset, totalOffset, 4);  //convert the int into an entry in the char* array for the total entries in the eeprom
+  itoa(entries, totalentries, 10);  //convert the int into an entry in the char* array for the total entries in the eeprom
+  itoa(eepromoffset, totalOffset, 10);  //convert the int into an entry in the char* array for the total entries in the eeprom
 
   char* sep = "#";
   //prepare EEPROM header
@@ -802,7 +803,7 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
   strcat(datatowrite, totalOffset);
   strcat(datatowrite, sep);
 
-  Serial.println(F("Current Header values ready to be updated to EEPROM: "));
+  Serial.print(F("Current Header values ready to be updated to EEPROM: "));
   Serial.println(datatowrite);
 
   Serial.println(F("Saving Header info to EEPROM"));
@@ -818,7 +819,7 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
 int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* eepromoffsetread){
   char data[150]={};
   //Read in header values from EEPROM.
-  Serial.println(F("Call to read Header data from EEPROM"));
+  Serial.println(F("Reading Header in EEPROM"));
   EEPROM.begin(); //NOTE: this takes 0 arguments for AVR, but a value of 512 for ESP32
   int count = 0;
   int address = EEPROMFirstaddress; //start at lowest address
@@ -846,15 +847,15 @@ int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* e
       #ifdef EEPROMOUT
       Serial.print(F("Interpreted character (between field # marker): ")); //printout headers
       Serial.print(data); //printout data
-      Serial.println(""); //printout separator, line break
+      Serial.println(); //printout separator, line break
       #endif
     }
     ++address;
   }
   delay(100);
-  Serial.println(F("<--Read data complete, this was read from Header stored in EEPROM (Print EEPROM bytes as characters, each field as a new line)"));
-    itoa(totalentriesread, returnedeepromvalue, 4);
-    itoa(eepromoffsetread, returnedentries, 4);
+  Serial.println(F("<--Read Complete (Header)"));
+    itoa(totalentriesread, returnedeepromvalue, 10); //convert as base 10, integer to array
+    itoa(eepromoffsetread, returnedentries, 10);  //convert as base 10, integer to array
     return returnedentries; //return the value as an integer that was read as the last EEPROM location
 }
 
@@ -1389,6 +1390,15 @@ void generalOperation(int fitChoice){ //equivelant to a main function, basica pr
   // prompt user to send new calibration values to EEPROM
 }
 
+
+void serial_flush(void) {
+  //Serial.print("Pre-Flush Serial Buffer Fill Status: ");  //debug line
+  //Serial.println(Serial.available());  //debug line, pre-flush value
+  while (Serial.available()) Serial.read();
+  //Serial.print("Post Flush Serial Buffer Fill Status: ");  //debug line
+  //Serial.println(Serial.available());  //debug line, should be zero
+}
+
 void displayFitChoiceMenu()
 {
     //Display opening menu
@@ -1411,19 +1421,17 @@ void displayFitChoiceMenu()
 void loop() {
   displayFitChoiceMenu();
   flushInputSerialBuffer(inputSeveral); 
-  delay(3000); //delay to allow buffered input to build up in this approach
-  int escapestatus = 1; //escape when new line reached
-  do
+  serial_flush(); //flush Serial buffer to prepare for next input
+    while (Serial.available()==0)
   {
-    escapestatus= readSeveralChars(); //this is a timed based serial input, please move to better approach
+    //wait for user serial input
   }
-  while(escapestatus==1);
-  Serial.println();
-  Serial.print("Input Received: ");
-  Serial.println(inputSeveral);
+  delay(500); //delay to allow buffered input to build up in this approach during serial transmission
   
-  uint8_t SelectionfitChoice = atoi(inputSeveral);
-  generalOperation(SelectionfitChoice);  //run the calibration system program as a single instance that repeats on exit.
+  long SelectionfitChoice = Serial.parseInt(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
+  serial_flush(); //flush Serial buffer to prepare for next input
+  generalOperation((int)SelectionfitChoice);  //run the calibration system program as a single instance that repeats on exit.
+ 
   
   // deallocation reset array before executing new instance
   delete[] px;
