@@ -61,6 +61,8 @@ void setup() {
   Serial.begin(115200);
   Serial.setTimeout(10000); //setserialtimeout
   Serial.println(F("Starting..."));
+  Serial.println(F("Arduino Least Squares Fitting Tool v. 1.0"));
+  Serial.println(F("Note: Make sure Newline or CR/LN (not NONE) is enabled for input serial terminal program"));
 }
 
 
@@ -98,6 +100,9 @@ void fabls_linear(unsigned int n,double *px,double *py)
       }
       s = sqrt(s / r);
       sign = (a1 < 0) ? '-' : '+';
+      Serial.println(); //add a space for the printed return to offset it from inputs
+      Serial.println(F("**************************************"));
+      Serial.println(); //add a space for the printed return to offset it from inputs
       ardprintf(regressionPrecision, "Linear:   y = (%f) x %c %f; s = %f\n",a2,sign,fabs(a1),s);
       mask |= '\x01';
       z[0] = s;
@@ -127,9 +132,13 @@ void fabls_linear(unsigned int n,double *px,double *py)
       averageabsoluteerrorHolder[i] = absoluteError;  //save into array during calculation
       
    }
-
+   
   averageabsoluteerror = averagecalc(n, averageabsoluteerrorHolder); //calculate absolute error average
   averagepercenterror = averagecalc(n, averagepercenterrorHolder); //calculate absolute error average
+  Serial.print(F("Average Absolute Error: "));
+  Serial.println(averageabsoluteerror, regressionPrecision);
+  Serial.print(F("Average Percent Error: "));
+  Serial.println(averagepercenterror,regressionPrecision);
   
    double rSquaredReturn;
    double adjRSquaredReturn;
@@ -137,9 +146,11 @@ void fabls_linear(unsigned int n,double *px,double *py)
 
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn, reportingPrecision);
-   Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn, reportingPrecision); // this is not true, just a place-holder for now
-   
+   //Serial.print(F("adjusted r^2 = "));  //adjusted r^2 used with mutivariate, still to be implemented
+   //Serial.println(adjRSquaredReturn, reportingPrecision); //adjusted r^2 used with mutivariate, still to be implemented
+   Serial.println(); //add a space for the printed return to offset it from inputs
+   Serial.println(F("**************************************"));
+   Serial.println(); //add a space for the printed return to offset it from inputs
    if(reportToEEPROM == 1)
    {
     Serial.println(F("Recording values in EERPOM..."));
@@ -783,16 +794,16 @@ double safeDiv(double numerator, double denominator)
     }
 }
 
-double averagecalc(int len, double *values)
+double averagecalc(int len, double* values)
 {
-   int index,total;
-   total = 0; //Initialize the total accumulator
+   int index = 0;
+   long total = 0; //Initialize the total accumulator
    
    for(index = 0; index < len; index++) 
    {
-      total += values[index];
+      total = total + values[index]; //add in each value in array
    }
-   return (total/(float)len);
+   return ((double)total/(double)len); //div by total array elements
 
 }
 
@@ -1164,9 +1175,7 @@ void generalOperation(int fitChoice){ //equivelant to a main function, basica pr
     Serial.println(F("Fit Chosen: Linear"));
 
     Serial.print(F("Input total points: "));   // prompt user
-    delay(2000);                            // delay for input (while (Serial.avaiable()) causes char array to become zero and instantly changes input variable to 0)
-    readSeveralChars();
-    totalPoints = atoi(inputSeveral);   // converts char array to int
+    totalPoints = NumericIntergerInput();
     Serial.println(totalPoints);
     Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
 
@@ -1182,25 +1191,8 @@ void generalOperation(int fitChoice){ //equivelant to a main function, basica pr
        Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
       
     }
-    delay(3000);
-    px = new double[totalPoints]; // Load x's into array
-    py = new double[totalPoints]; // Load y's into array
-    for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
-    {
-      ardprintf("Input x%d", i+1);        // printf for serial, function implemented below
-      delay(2000);
-      readSeveralChars();
-      px[i] = atof(inputSeveral);
-      Serial.println(px[i]);
-      delay(1000);
-
-      ardprintf("Input y%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      py[i] = atof(inputSeveral);
-      Serial.println(py[i]);
-      delay(1000);
-    }
+    delay(500);
+    manualPointEntry(totalPoints); //use manual points entry function to collect user input for x and y points, update global arrays for entered data
     fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator 
   }
   // Quadratic
@@ -1435,11 +1427,33 @@ void displayFitChoiceMenu()
   Serial.println(F("What is your selection?: "));
 }
 
-void loop() {
-  displayFitChoiceMenu();
+void manualPointEntry (int i) //i is total points entered
+{
+    px = new double[totalPoints]; // Load x's into array
+    py = new double[totalPoints]; // Load y's into array
+    for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
+    //Enter X values
+    {
+      ardprintf("Input value for x%d : ", i+1);        // printf for serial, function implemented below
+      px[i] = (double)NumericFloatInput();
+      Serial.print("Entered Value: ");
+      Serial.println(px[i]);
+      delay(500); //nice, easy transisitonal delay to next input
+      
+      //Enter Y values
+      ardprintf("Input value for y%d : ", i+1);
+      py[i] = (double)NumericFloatInput();
+      Serial.print("Entered Value: ");
+      Serial.println(py[i]);
+      delay(500);
+    }
+}
+
+int NumericIntergerInput()
+{
   flushInputSerialBuffer(inputSeveral); 
   serial_flush(); //flush Serial buffer to prepare for next input
-    while (Serial.available()==0)
+  while (Serial.available()==0)
   {
     //wait for user serial input
   }
@@ -1447,8 +1461,27 @@ void loop() {
   
   long SelectionfitChoice = Serial.parseInt(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
   serial_flush(); //flush Serial buffer to prepare for next input
-  generalOperation((int)SelectionfitChoice);  //run the calibration system program as a single instance that repeats on exit.
- 
+  return ((int)SelectionfitChoice);
+}
+
+float NumericFloatInput()
+{
+  flushInputSerialBuffer(inputSeveral); 
+  serial_flush(); //flush Serial buffer to prepare for next input
+  while (Serial.available()==0)
+  {
+    //wait for user serial input
+  }
+  delay(500); //delay to allow buffered input to build up in this approach during serial transmission
+  
+  float valueInput = Serial.parseFloat(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
+  serial_flush(); //flush Serial buffer to prepare for next input
+  return (valueInput);
+}
+
+void loop() {
+  displayFitChoiceMenu(); //display menu to user
+  generalOperation(NumericIntergerInput()); //take input from menu selection then process input and fits
   
   // deallocation reset array before executing new instance
   delete[] px;
