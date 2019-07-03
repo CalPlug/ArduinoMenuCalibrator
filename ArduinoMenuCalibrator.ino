@@ -449,20 +449,18 @@ void fabls_exp(unsigned int n,double *px,double *py)
       z[2] = s;
    }
 
-   Serial.print(F("X"));
-   Serial.print(F("         Y"));
-   Serial.print(F("         Calculated Y"));
-   Serial.println(F("       Absolute Error"));
-   Serial.println(F("     PercentError%"));
+   //updated function to include EEPROM portion of code
+   Serial.print("X");
+   Serial.print("         Y");
+   Serial.print("         Calculated Y");
+   Serial.println("     PercentError%");
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = (a2) * px[i] + (a1);
-      double absoluteError = y - py[i]; 
-
+      double y = exp(((a2) * (px[i])) + (a1)); //adjusted this regression value calculated for y to actually model exponential function
       pyregress[i] = y;
       
       double error = ((y - py[i])/py[i])*100;
-      ardprintf("%f      %f      %f             %f          %f", px[i], py[i], y, absoluteError, error);
+      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
    }
    double rSquaredReturn;
    double adjRSquaredReturn;
@@ -470,7 +468,32 @@ void fabls_exp(unsigned int n,double *px,double *py)
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
    Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
+   Serial.println(adjRSquaredReturn); 
+
+   if(reportToEEPROM == 1)
+   {
+      int expressionTotalTerms = 2;   // changed total number of expression terms
+      bool reportedConfiguredStatus = 1;  // updated status for configure
+      char invertedStatus[2];
+      char configuredStatus[2];
+      char expressionTerms[2];
+      char constant[EEPROMVariableBufferSize];
+      char linear[EEPROMVariableBufferSize];
+      char squared[EEPROMVariableBufferSize];
+      if(reportInvertedValues == 1)
+      {
+          a1 = 1/(a1);
+          a2 = 1/(a2); 
+          a3 = 1/(a3);
+      }
+      itoa(reportInvertedValues, invertedStatus, 2);
+      itoa(reportedConfiguredStatus, configuredStatus, 2);
+      itoa(expressionTotalTerms, expressionTerms, 2);
+      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared); // Leave room for too large numbers!
+      WriteCalEEPROM(offsetInEEPROM, "sensor1", "quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);
+   }
 }
 
 
@@ -509,14 +532,14 @@ void fabls_log(unsigned int n,double *px,double *py)
       z[3] = s;
    }
 
+   //updated function to include EEPROM portion of code
    Serial.print("X");
    Serial.print("         Y");
    Serial.print("         Calculated Y");
    Serial.println("     PercentError%");
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = (a2) * px[i] + (a1);
-      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      double y = ((a2) * log(px[i])) + (a1);  //adjusted this regression value calculated for y to actually model logarithmic function
 
       pyregress[i] = y;
       
@@ -529,7 +552,32 @@ void fabls_log(unsigned int n,double *px,double *py)
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
    Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
+   Serial.println(adjRSquaredReturn); 
+
+   if(reportToEEPROM == 1)
+   {
+      int expressionTotalTerms = 2;   // changed total number of expression terms to 2
+      bool reportedConfiguredStatus = 1;  // updated status for configure
+      char invertedStatus[2];
+      char configuredStatus[2];
+      char expressionTerms[2];
+      char constant[EEPROMVariableBufferSize];
+      char linear[EEPROMVariableBufferSize];
+      char squared[EEPROMVariableBufferSize];
+      if(reportInvertedValues == 1)
+      {
+          a1 = 1/(a1);
+          a2 = 1/(a2); 
+          a3 = 1/(a3);
+      }
+      itoa(reportInvertedValues, invertedStatus, 2);
+      itoa(reportedConfiguredStatus, configuredStatus, 2);
+      itoa(expressionTotalTerms, expressionTerms, 2);
+      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared); // Leave room for too large numbers!
+      WriteCalEEPROM(offsetInEEPROM, "sensor1", "quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);
+   }
 }
 
 
@@ -566,15 +614,14 @@ void fabls_power(unsigned int n,double *px,double *py)
       mask |= '\x10';
       z[4] = s;
    }
-
+   //updated function to include EEPROM portion of code
    Serial.print("X");
    Serial.print("         Y");
    Serial.print("         Calculated Y");
    Serial.println("     PercentError%");
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = (a2) * px[i] + (a1);
-      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      double y = ((a1) * (exp((px[i]) * (a2))));    //adjusted this regression value calculated for y to actually model power function
 
       pyregress[i] = y;
       
@@ -587,7 +634,32 @@ void fabls_power(unsigned int n,double *px,double *py)
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
    Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
+   Serial.println(adjRSquaredReturn); 
+
+   if(reportToEEPROM == 1)
+   {
+      int expressionTotalTerms = 2;   // changed total number of expression terms to 2
+      bool reportedConfiguredStatus = 1;  // updated status for configure
+      char invertedStatus[2];
+      char configuredStatus[2];
+      char expressionTerms[2];
+      char constant[EEPROMVariableBufferSize];
+      char linear[EEPROMVariableBufferSize];
+      char squared[EEPROMVariableBufferSize];
+      if(reportInvertedValues == 1)
+      {
+          a1 = 1/(a1);
+          a2 = 1/(a2); 
+          a3 = 1/(a3);
+      }
+      itoa(reportInvertedValues, invertedStatus, 2);
+      itoa(reportedConfiguredStatus, configuredStatus, 2);
+      itoa(expressionTotalTerms, expressionTerms, 2);
+      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared); // Leave room for too large numbers!
+      WriteCalEEPROM(offsetInEEPROM, "sensor1", "quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);
+   }
 }
 
 void readSeveralChars() {
