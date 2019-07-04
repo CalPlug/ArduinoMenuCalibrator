@@ -29,6 +29,7 @@ static unsigned int input_pos = 0;
 //EEPROM Configuration Settings
 //Allows the output to be written to the EEPROM in a common format that can be extended on in multiple writes.  An initial flag is used as a quick test for readback to verify if valud values have been already pusghed to the EEPROM.  on the second value set, this write is supressed with the EEPROM offset provided so the values in the EEPROM for all sensors are sequenctial.
 #define reportToEEPROM 1  // enable this, make value equal to 1 to allow recording values to the EEPROM after regression
+#define EEPROMAppend //If selected the EEPROm will append to last entered value, if not defined, the latest value will overwrite and the header in the EEPROM will be adjusted accordingly
 #define reportInvertedValues 0  //  store values in EEPROM as the inverse, often used for very small decimals
 #define EEPROMVariableBufferSize 25 
 #define EEPROMVariableLength 12
@@ -175,16 +176,22 @@ void fabls_linear(unsigned int n,double *px,double *py)
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       Serial.print (F("Position to write data to: "));
       Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
-      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),":sensor1","linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
       Serial.print (F("Written Data Current End Address: "));
       Serial.println (currentoffset, DEC); //print the position as an integer
       Serial.print (F("Returned Final data written address Position: "));
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding 
-      WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //update the header after the last write, write in last EEPROM address location
-      //using overwite next field as first as option:
-      //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); //update the header after the last write, write in last EEPROM address location as first
+      #ifdef EEPROMAppend
+      WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+      #endif
+      #ifndef EEPROMAppend
+      WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+      #endif
+    
+      
+
    }
    
    delay(1000); //end function after delay, make sure buffer is cleared
@@ -282,6 +289,8 @@ void fabls_quad(unsigned int n,double *px,double *py)
       dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared); // Leave room for too large numbers!
       WriteCalEEPROM(offsetInEEPROM, "sensor1", "quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);
+
+
    }
 }
 
@@ -918,7 +927,7 @@ int EEPROMReadLocation =0; //updated value for final EEPROM location
   strcat(datatowrite, sep);
   strcat(datatowrite, totaloffsetinend);
   strcat(datatowrite, sep);
-
+  strcat(datatowrite,":");//Augment a colon to denote a new entry
   strcat(datatowrite, towrite_value_name);
   strcat(datatowrite, sep);
   strcat(datatowrite, towrite_type_of_regression);
@@ -993,6 +1002,7 @@ int WriteCalEEPROM(int eepromoffset, char* towrite_entryvalue_name, char* towrit
   char localdatatowrite[150] = {0};  //EEPROM entry character array holder
   Serial.println(F("Preparing to save Sensor Data to EEPROM"));
   char* sep = "#";
+  strcat(localdatatowrite, ":");//Augment a colon to denote a new entry
   strcat(localdatatowrite, towrite_entryvalue_name);
   strcat(localdatatowrite, sep);
   strcat(localdatatowrite, towrite_type_of_regression);
@@ -1153,13 +1163,12 @@ int process_data_int (const char * data) //process the serial string, for intege
   return floatreturn;
   }  // end of process_data
 
-void flushInputSerialBuffer (char* localinputSeveral) 
+void flushAray (char* localinputSeveral) 
 {
   for (int i=0; i<buffSize; i++)
   {
-   localinputSeveral[i] = 0; //flush the buffer
+   localinputSeveral[i] = {0}; //flush the array with null characters
   }
-  input_pos = 0; //reset the string reading position, this is global
 }
 
 void generalOperation(int fitChoice){ //equivelant to a main function, basica program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
@@ -1451,7 +1460,6 @@ void manualPointEntry (int i) //i is total points entered
 
 int NumericIntergerInput()
 {
-  flushInputSerialBuffer(inputSeveral); 
   serial_flush(); //flush Serial buffer to prepare for next input
   while (Serial.available()==0)
   {
@@ -1466,7 +1474,6 @@ int NumericIntergerInput()
 
 float NumericFloatInput()
 {
-  flushInputSerialBuffer(inputSeveral); 
   serial_flush(); //flush Serial buffer to prepare for next input
   while (Serial.available()==0)
   {
