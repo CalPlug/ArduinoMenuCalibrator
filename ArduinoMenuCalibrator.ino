@@ -14,6 +14,8 @@
 #define reportingPrecision 4  //decicmal precision displayed to the screen
 
 //global holders for entered values
+//warning, this is dynamically allocated, be careful about heap fragmentation!  See: https://arduino.stackexchange.com/questions/3774/how-can-i-declare-an-array-of-variable-size-globally and https://arduino.stackexchange.com/questions/682/is-using-malloc-and-free-a-really-bad-idea-on-arduino and 
+//this is only the declaration (using C++ style), the actual meory allocation has not happened at this point
 double* px;       // dynamic array for x's (DAQ system values)
 double* py;       // dynamic array for y's (calibrated values)
 double* pyregress;  // local calculated regression values for each regression type
