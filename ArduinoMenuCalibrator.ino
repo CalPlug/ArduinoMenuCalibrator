@@ -387,7 +387,7 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
     double y = 0; //set each term's calculation initialized at 0
     for (int q = 0; q < (n + 1); q++)  //for all terms
       { 
-        y = y + a[q]*ipow(px[j], q);  // y has ((some constant) * (x to a power)) being added to it repeatedly through the for loop 
+        y = y + a[q]*pow((float)px[j], (float)q);  // y has ((some constant) * (x to a power)) being added to it repeatedly through the for loop 
       }
       
     double error = ((y - py[j])/py[j])*100;
@@ -777,6 +777,28 @@ int fitSelection(int fitChoice)
 
     return 1; // successfully ran
   }
+
+  else if (fitChoice == 7) 
+  {
+    Serial.println("Displaying Points Chosen: ");
+
+    if (totalPoints > 0)
+    {
+      listPoints(totalPoints, px, py);
+    }
+    else 
+    {
+      Serial.println(F("Error: No points entered..."));
+    }
+    
+    return 1; // successfully ran
+  }
+
+  else if (fitChoice == 8)
+  {
+    adHocPointEntry();  //Enter manual points
+  }
+ 
   // Invalid
   else 
   {
@@ -831,11 +853,12 @@ int dataEntrySelection (int pointssel) //selects the point entry method requeste
   Serial.println();
   if (modeselection == 1)
   {
-    return (AnalogReadPointEntry (pointssel));
+    
+    return (AnalogReadPointEntry (pointssel));  
   }
   else if (modeselection == 2)
   {
-    //return(manualPointEntry(pointssel));
+    return(manualPointEntry(pointssel));
   }
 }
 int AnalogReadPointEntry (int totalpointstosample) //i is total points entered --needs to have total points and px,py passed as areguements versus global modification
@@ -843,12 +866,12 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
   px = new double[totalPoints]; // Load x's into array
   py = new double[totalPoints]; // Load y's into array
   double readx=0; //holder for the last X value readin
-  Serial.print (("Enter Analog pin to read from (often 1-6): "));
+  Serial.print (("Enter Analog pin to read from (often 0-5): "));
   int pinselection = NumericIntegerInput();
   Serial.println ();
-  //Serial.print (("Median or mean average(0=median, 1=average)"));  can be used to promt for use of median or mean (average) function for calculation
-  //int mode = NumericIntegerInput();
-  //Serial.println ();
+  Serial.print (("Median or mean average(0=median, 1=average)"));  //can be used to promt for use of median or mean (average) function for calculation
+  int mode = NumericIntegerInput();
+  Serial.println ();
   Serial.print (("How many sets of 3 measurements to average? (0 to 20): "));
   int averages = NumericIntegerInput(); //mult by 3 for mean-average algorithm
   Serial.println ();
@@ -861,8 +884,14 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
       while (entryloopremain == 1)
        {
         //Measure X values
-        readx = readSensorInputSimpleAverage(pinselection, averages, 0, 0); //an alternative for median averaged values also exists: //readx = readSensorInputMedian(pinselection, averages, 0, 0, 0, 0);
-
+        if (mode == 1)
+        {
+           readx = readSensorInputSimpleAverage(pinselection, averages, 0, 0); //an alternative for median averaged values also exists:
+        }
+        else if (mode == 0)
+        {
+          readx = readSensorInputMedian(pinselection, averages, 0, 0, 0, 0);
+        }
         Serial.print("Measured Value (for x): ");
         Serial.print(readx,reportingPrecision);
         Serial.print("   <--Do you want to keep this value?  [Accept(1),Redo(2),Abort(3)]:");
@@ -1169,8 +1198,10 @@ void displayFitChoiceMenu()
   Serial.println(F("  (4)Logarithmic - Minimum three points, x != 0"));
   Serial.println(F("  (5)Power - Minimum three points, x != 0"));
   Serial.println(F("  (6)Arb. Order Polynomial - Minimum points req. is equation order+1")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
+  Serial.println(F("  (7)List Current Points in Memory"));
+  Serial.println(("  (8)Manual Point Entry"));
   Serial.println(F("  (0)Exit"));
-  Serial.print(F("Selection? (0-6): "));
+  Serial.print(F("Selection? (0-8): "));
 }
 
 void textSectionBreak(){
@@ -1473,8 +1504,9 @@ int save_data(int offset, char* datalocal){
 } //end of save_data function define
 
 int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inputvaluename, unsigned int inputaraylength){
-  Serial.println (F("Save Regression to EEPROM (0=No, 1=Yes): "));
+  Serial.print(F("Save Regression to EEPROM (0=No, 1=Yes): "));
   int selectionValue =  NumericIntegerInput();
+  Serial.println();
   int enteredcorrectly = 0;
     if (selectionValue==1) //force to loop until user indicates correctly entered 
       {
@@ -1589,6 +1621,29 @@ double readSensorInputSimpleAverage(int inputpin, int readcycles, bool enabavgSe
  return (((holder/(double)readcycles))); //return calculated average of median read values
 }
 
+void listPoints(int totalPoints, double* px, double* py)
+{
+  Serial.print(("Current points in memory: "));
+  Serial.println(totalPoints, DEC);
+  Serial.println();
+  for (int i = 0; i < totalPoints; i++)
+  {
+    Serial.print("(");
+    Serial.print(px[i]);
+    Serial.print(",");
+    Serial.print(py[i]); 
+    Serial.print(")");
+    Serial.println();
+  }
+}
+
+void adHocPointEntry()
+{
+    Serial.println("Add points: ");
+    pointInputProcess(); 
+    
+    dataEntrySelection (totalPoints);// select point entry method
+}
 
 void loop() 
 {
@@ -1611,4 +1666,5 @@ void loop()
   delete[] px;
   delete[] py;
   delete[] pyregress;
+  totalPoints = 0; // 0 this off when other values are erased
 }
