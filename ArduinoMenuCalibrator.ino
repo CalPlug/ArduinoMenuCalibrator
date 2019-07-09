@@ -3,78 +3,66 @@
 //Note: This program uses cited numeric calculation methods developed in part or in whole by other contributers.  The developers of this utility thank these authors for helping us develop this utility!
 //Released under GNU Licence, Copyright (2019) Regents of the University of California 
 
-
-
 #include <math.h>
 #include <EEPROM.h>                      
 #define ARDBUFFER 16
 #include <stdarg.h>
 #include <Arduino.h>
 
-#define buffSize 16
-char inputSeveral[buffSize]; // schar array for input function below
-                             // space for 16 chars and a terminator
-const unsigned int MAX_INPUT = ARDBUFFER;//characters in input buffer for serial input
-static unsigned int input_pos = 0;
+//General #defines
+#define regressionPrecision 5  //decicmal precision for recorded values saved to EEPROM
+#define reportingPrecision 4  //decicmal precision displayed to the screen
 
-#define maxChars 12 // a shorter limit to make it easier to see what happens
-                   //  if too many chars are entered
-
-#define regressionPrecision 5  
-#define reportingPrecision 4 
-//#define EEPROMOUT //when defined, debug is enabled to read out header info when function is called
-
-//#define DEFAULTTHEEEPROM  //This is normally commented out to turn off defaulter during normal operation!  When turned on the EEPROM is defaulted at the beginning of the Setup()   Note: turn this on and run once if new chip to put in the field separators in place in the EEPROm to overwite later - consider this a partition step
-
-//EEPROM Configuration Settings
-//Allows the output to be written to the EEPROM in a common format that can be extended on in multiple writes.  An initial flag is used as a quick test for readback to verify if valud values have been already pusghed to the EEPROM.  on the second value set, this write is supressed with the EEPROM offset provided so the values in the EEPROM for all sensors are sequenctial.
-#define reportToEEPROM 1  // enable this, make value equal to 1 to allow recording values to the EEPROM after regression
-#define EEPROMAppend //If selected the EEPROm will append to last entered value, if not defined, the latest value will overwrite and the header in the EEPROM will be adjusted accordingly
-#define reportInvertedValues 0  //  store values in EEPROM as the inverse, often used for very small decimals
-#define EEPROMVariableBufferSize 25 
-#define EEPROMVariableLength 12
-#define EEPROMDecimalPrecision 8  
-
-//global values for the EEPROM (mirrored cached version, with these being the initialization values)
-char configured_status_cached[2] = {0}; //read-in field values
-char totalentriesread_cached[5] = {0}; //read-in field values
-char eepromoffsetread_cached[6] = {0};  //read-in field values
-
-int EEPROMCurrentPosition = 0;
-int EEPROMFirstaddress = 0; //define the offset for the first entered EEPROM value
-int maxheaderreadaddress = 10; //numper of positions after which to stop reading the header, this keeps it from reading the whole thing if the EEPROM is not initalized and swamping the console
-int offsetInEEPROM = 10;  // offset address to begin writing in EEPROM for sensor data after the header
-bool reportConfigured = 1; 
-bool reportedConfiguredStatus = 1;  // updated status for configure
-char invertedStatus[3];
-char configuredStatus[3];
-
-//holders for entered values
+//global holders for entered values
 double* px;       // dynamic array for x's (DAQ system values)
 double* py;       // dynamic array for y's (calibrated values)
 double* pyregress;  // local calculated regression values for each regression type
 volatile uint8_t totalPoints = 0;  //declare default case of 0 points, total point entered into the array
 
+//EEPROM Configuration Settings
+//Allows the output to be written to the EEPROM in a common format that can be extended on in multiple writes.  An initial flag is used as a quick test for readback to verify if valud values have been already pusghed to the EEPROM.  on the second value set, this write is supressed with the EEPROM offset provided so the values in the EEPROM for all sensors are sequenctial.
+//#define EEPROMOUT //when defined, debug is enabled to read out header info when function is called
+//#define DEFAULTTHEEEPROM  //This is normally commented out to turn off by default during normal operation!  When turned on the EEPROM is defaulted at the beginning of the Setup()   Note: turn this on and run once if new chip to put in the field separators in place in the EEPROM to overwite later - consider this a partition step.  Typically run this for a vigin chip
+#define EEPROMAppend //If selected the EEPROm will append to last entered value, if not defined, the latest value will overwrite and the header in the EEPROM will be adjusted accordingly
+#define reportInvertedValues 0  //  store values in EEPROM as the inverse, often used for very small decimals
+#define EEPROMVariableBufferSize 25 
+#define EEPROMVariableLength 12
+#define EEPROMDecimalPrecision 8  
+#define ENTRYNAMEMAX //8 chars max for allowed entryname
+int reportToEEPROM = 1; //flag to report to EEPR
+
+//global values for the EEPROM (mirrored cached version, with these being the initialization values)
+char configured_status_cached[2] = {0}; //read-in field values
+char totalentriesread_cached[5] = {0}; //read-in field values
+char eepromoffsetread_cached[6] = {0};  //read-in field values
+char invertedStatus[3] = {0};
+char configuredStatus[3] = {0};
+
+int EEPROMCurrentPosition = 0;
+int EEPROMFirstaddress = 0; //define the offset for the first entered EEPROM value
+int maxheaderreadaddress = 10; //numper of positions after which to stop reading the header, this keeps it from reading the whole thing if the EEPROM is not initalized and swamping the console
+int offsetInEEPROM = 10;  // offset address to begin writing in EEPROM for sensor data after the header
+bool reportConfigured = 1; //status for the written configured bit flag, a 1 indicates to the reading that values are valid, any other number flags invalid or not configured values currently in EERPOM, don't bother reading in the rest.
+bool reportedConfiguredStatus = 1;  // updated status for configure, this is the read out value 
+
+
 void setup() {
-  #ifdef DEFAULTTHEEEPROM
-  WriteDefaultEERPOM(); //run this vor a vigin chip
-  #endif 
+ 
   Serial.begin(115200);
-  Serial.setTimeout(10000); //setserialtimeout
-  Serial.println(F("Starting..."));
-  Serial.println(F("Arduino Least Squares Fitting Tool v. 1.0"));
-  Serial.println(F("Note: Make sure Newline or CR/LN (not NONE) is enabled for input serial terminal program"));
+  Serial.setTimeout(10000); //set Serial Timeout
+  Serial.println(F("Arduino Least Squares Fit Tool v.1.0 | Note: USE Newline or CR/LN in serial terminal program"));
+  Serial.println();
+
+  //an IFDEF is used to activate the EEPROM defaulter if enabled
+  #ifdef DEFAULTTHEEEPROM
+  WriteDefaultEERPOM(); //run this for a vigin chip
+  #endif 
 }
 
-
-// https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
-// Fit Analysis By Least Squares 
-double alog(double x)
-{  return (x < 0) ? -log(-x) : ((x > 0) ? log(x) : 0);
-}
-
+// Functions for Fit Analysis By Least Squares, multiple methods for different regression types and corresponding output helper functions
 void fabls_linear(unsigned int n,double *px,double *py)
 {  
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -101,57 +89,47 @@ void fabls_linear(unsigned int n,double *px,double *py)
       }
       s = sqrt(s / r);
       sign = (a1 < 0) ? '-' : '+';
-      Serial.println(); //add a space for the printed return to offset it from inputs
-      Serial.println(F("**************************************"));
-      Serial.println(); //add a space for the printed return to offset it from inputs
+      textSectionBreak();
       ardprintf(regressionPrecision, "Linear:   y = (%f) x %c %f; s = %f\n",a2,sign,fabs(a1),s);
       mask |= '\x01';
       z[0] = s;
    }
+   //end of regression algorithm
 
-   Serial.print(F("X"));
-   Serial.print(F("         Y"));
-   Serial.print(F("         Calculated Y"));
-   Serial.print(F("       Absolute Error"));
-   Serial.println(F("     PercentError%"));
-   
-   double averagepercenterror;
-   double averagepercenterrorHolder[n];
-   double averageabsoluteerror;
-   double averageabsoluteerrorHolder[n];
-   
+   regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
+   double averagepercenterrorHolder[n] = {0}; //initialize holder array with all 0's
+   double averageabsoluteerrorHolder[n] = {0}; //initialize holder array with all 0's
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = (a2) * px[i] + (a1);
       double absoluteError = y - py[i]; 
-
       pyregress[i] = y;
-      
       double error = safeDiv((y - py[i]), py[i])*100.0;
       ardprintf(reportingPrecision, "%f      %f      %f                %f            %f", px[i], py[i], y, absoluteError, error);
       averagepercenterrorHolder [i] = error; //save into array during calculation
       averageabsoluteerrorHolder[i] = absoluteError;  //save into array during calculation
-      
    }
-   
-  averageabsoluteerror = averagecalc(n, averageabsoluteerrorHolder); //calculate absolute error average
-  averagepercenterror = averagecalc(n, averagepercenterrorHolder); //calculate absolute error average
+  double averageabsoluteerror = averagecalc(n, averageabsoluteerrorHolder); //calculate absolute error average
+  double averagepercenterror = averagecalc(n, averagepercenterrorHolder); //calculate absolute error average
   Serial.print(F("Average Absolute Error: "));
   Serial.println(averageabsoluteerror, regressionPrecision);
   Serial.print(F("Average Percent Error: "));
   Serial.println(averagepercenterror,regressionPrecision);
   
-   double rSquaredReturn;
-   double adjRSquaredReturn;
-   determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
+ double rSquaredReturn;
+ double adjRSquaredReturn;
+ determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
 
-   Serial.print(F("r^2 = "));
-   Serial.println(rSquaredReturn, reportingPrecision);
-   //Serial.print(F("adjusted r^2 = "));  //adjusted r^2 used with mutivariate, still to be implemented
-   //Serial.println(adjRSquaredReturn, reportingPrecision); //adjusted r^2 used with mutivariate, still to be implemented
-   Serial.println(); //add a space for the printed return to offset it from inputs
-   Serial.println(F("**************************************"));
-   Serial.println(); //add a space for the printed return to offset it from inputs
+ Serial.print(F("r^2 = "));
+ Serial.println(rSquaredReturn, reportingPrecision);
+ //Serial.print(F("adjusted r^2 = "));  //adjusted r^2 used with mutivariate, not used in this regression type
+ //Serial.println(adjRSquaredReturn, reportingPrecision); //adjusted r^2 used with mutivariate, not used in this regression type
+ textSectionBreak();
+
+ int append = 1;
+ int inverted = 0; 
+ char entryname[ENTRYNAMEMAX]={0};//entry name holder
+ reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname); //reference return append status
    if(reportToEEPROM == 1)
    {
     Serial.println(F("Recording values in EERPOM..."));
@@ -171,16 +149,16 @@ void fabls_linear(unsigned int n,double *px,double *py)
       dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       Serial.println();
       int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
-      Serial.print (F("Read EEPROM Header length: "));
+      EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
       Serial.println (currentoffset, DEC); //print the position as an integer
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
-      Serial.print (F("Position to write data to: "));
+      EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
       Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
       currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
-      Serial.print (F("Written Data Current End Address: "));
+      EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
       Serial.println (currentoffset, DEC); //print the position as an integer
-      Serial.print (F("Returned Final data written address Position: "));
+      EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding 
       #ifdef EEPROMAppend
@@ -189,16 +167,14 @@ void fabls_linear(unsigned int n,double *px,double *py)
       #ifndef EEPROMAppend
       WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
       #endif
-    
-      
-
-   }
-   
+    }
+  
    delay(1000); //end function after delay, make sure buffer is cleared
 }
 
 void fabls_quad(unsigned int n,double *px,double *py)
 {  
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -244,17 +220,14 @@ void fabls_quad(unsigned int n,double *px,double *py)
       mask |= '\x02';
       z[1] = s;
    }
-
-   Serial.print("X");
-   Serial.print("         Y");
-   Serial.print("         Calculated Y");
-   Serial.println("     PercentError%");
+   //end of regression algorithm
+   
+   regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
+   
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = ((a3) * (px[i] * px[i])) + ((a2) * px[i]) + (a1); 
-
       pyregress[i] = y;
-      
       double error = ((y - py[i])/py[i])*100;
       ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
    }
@@ -263,8 +236,8 @@ void fabls_quad(unsigned int n,double *px,double *py)
    determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
-   Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); 
+   //Serial.print(F("adjusted r^2 = "));
+   //Serial.println(adjRSquaredReturn); 
 
    if(reportToEEPROM == 1)
    {
@@ -296,7 +269,7 @@ void fabls_quad(unsigned int n,double *px,double *py)
 
 void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, double *regCoeff) // Arguments: (Total number of points, order of regression, x-pints, y-pounts)
 { 
-//Based on polynomial regression examples:  https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/ (Manas Sharma, 2015) with elements of https://rosettacode.org/wiki/Polynomial_regression#C/ GSL Library 
+//The algorithm used in this function is based on the following polynomial regression examples:  https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/ (Manas Sharma, 2015) with elements of https://rosettacode.org/wiki/Polynomial_regression#C/ GSL Library 
   
     int i,j,k;
     double X[2*n+1];                        //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
@@ -320,6 +293,8 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
     for (i=0;i<=n;i++)
         B[i][n+1]=Y[i];                //load the values of Y as the last column of B(Normal Matrix but augmented)
     n=n+1;                //n is made n+1 because the Gaussian Elimination part below was for n equations, but here n is the degree of polynomial and for n degree we get n+1 equations
+    
+    //printout matrix in function, used for debug
     /*
     Serial.println(F("\nThe Normal(Augmented Matrix) is as follows:\n"));   //printout calculation matrix 
     for (i=0;i<n;i++)            //print the Normal-augmented matrix
@@ -332,6 +307,7 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
             Serial.println();
     }    
     */
+    
     for (i=0;i<n;i++)                    //From now Gaussian Elimination starts(can be ignored) to solve the set of linear equations (Pivotisation)
         for (k=i+1;k<n;k++)
             if (B[i][i]<B[k][i])
@@ -358,7 +334,8 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
         a[i]=a[i]/B[i][i];            //now finally divide the rhs by the coefficient of the variable to be calculated
     }
     
-    /*Serial.println(F("\nThe values of the coefficients are as follows:\n"));
+    //printout coefs. in function, used for debug
+    /*Serial.println(F("\nThe values of the coefficients are as follows:\n"));  
     for (i=0;i<n;i++)
     {
         // Print the values of x^0,x^1,x^2,x^3,....    
@@ -367,20 +344,22 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
         Serial.print("=");
         Serial.println(a[i]); //end of line statement
     }*/
-
+//end of regression algorithm
   for (int i = 0; i < (n + 1); i++)  //copy array into reference returned array
   {
     regCoeff[i] = a[i];
   }
+  //The matrix used in calulation for high order polynomials can be large, the scope for the calculation is set aside from the display of the returned fitting coefs. so the calculation temporary variables can fall out of scope to conserve runtime SRAM memory
 }
-
 
 void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, double *py)
 {
    pyregress = new double[N];  // define holder for calculated regression values for all points
-   double averagepercenterrorHolder[N] = {0};
-   double averageabsoluteerrorHolder[N] = {0};
-   Serial.print(F("Hence the fitted Polynomial is given by:\n y ="));
+   double averagepercenterrorHolder[N] = {0}; //initialize holder with 0's
+   double averageabsoluteerrorHolder[N] = {0}; //initialize holder with 0's
+   Serial.print(F("The fitted order "));
+   Serial.print(n);
+   Serial.println(F(" Polynomial is given by:\n y ="));
    for (int i = 0; i < (n + 1); i++) // total points is equal to n+1
     {
       if (i == 0) //supress the initial + sign in the display
@@ -398,11 +377,9 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
     } 
 
    Serial.println();  //Break between segments
-   
-   Serial.print(F("X"));
-   Serial.print(F("         Y"));
-   Serial.print(F("         Calculated Y"));
-   Serial.println(F("     PercentError%"));
+
+   //calculation and display of fitting errors, conceptually we are showing residual error. See this discussion for more info:  https://www.mathworks.com/help/curvefit/residual-analysis.html
+   regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    
    for (int j = 0; j < N; ++j) //for all points
    {
@@ -437,10 +414,9 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
    determinationCoefficient(N, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
-   //Serial.print(F("adjusted r^2 = "));
-   //Serial.println(adjRSquaredReturn); 
+   //Serial.print(F("adjusted r^2 = ")); //adjusted R squared not used in this example
+   //Serial.println(adjRSquaredReturn);   //adjusted R squared not used in this example
     
-
      if(reportToEEPROM == 1)
    {
       int expressionTotalTerms = (N + 1);
@@ -475,12 +451,11 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
       //NOTE:  need to set up a case structure to accomodate to 10th order
       WriteCalEEPROM(offsetInEEPROM, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);
    }
-
 }
-
 
 void fabls_exp(unsigned int n,double *px,double *py)
 {  
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -511,12 +486,8 @@ void fabls_exp(unsigned int n,double *px,double *py)
       mask |= '\x04';
       z[2] = s;
    }
-
-   Serial.print(F("X"));
-   Serial.print(F("         Y"));
-   Serial.print(F("         Calculated Y"));
-   Serial.println(F("       Absolute Error"));
-   Serial.println(F("     PercentError%"));
+  //end of regression algorithm
+   regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = (a2) * px[i] + (a1);
@@ -532,14 +503,13 @@ void fabls_exp(unsigned int n,double *px,double *py)
    determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
-   Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
+   //Serial.print(F("adjusted r^2 = "));
+   //Serial.println(adjRSquaredReturn); // not used for this regression type and circumstance
 }
-
-
 
 void fabls_log(unsigned int n,double *px,double *py)
 {  
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -572,10 +542,7 @@ void fabls_log(unsigned int n,double *px,double *py)
       z[3] = s;
    }
 
-   Serial.print("X");
-   Serial.print("         Y");
-   Serial.print("         Calculated Y");
-   Serial.println("     PercentError%");
+   regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = (a2) * px[i] + (a1);
@@ -591,14 +558,13 @@ void fabls_log(unsigned int n,double *px,double *py)
    determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
-   Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
+   //Serial.print(F("adjusted r^2 = "));
+   //Serial.println(adjRSquaredReturn); //  not used for this regression type and circumstance
 }
-
-
 
 void fabls_power(unsigned int n,double *px,double *py)
 {  
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -630,10 +596,7 @@ void fabls_power(unsigned int n,double *px,double *py)
       z[4] = s;
    }
 
-   Serial.print("X");
-   Serial.print("         Y");
-   Serial.print("         Calculated Y");
-   Serial.println("     PercentError%");
+   regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = (a2) * px[i] + (a1);
@@ -649,50 +612,340 @@ void fabls_power(unsigned int n,double *px,double *py)
    determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
-   Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
+   //Serial.print(F("adjusted r^2 = "));
+   //Serial.println(adjRSquaredReturn); //  not used for this regression type and circumstance
 }
 
-int readSeveralChars() 
-{
-int notendofline = 1;
-  // this reads all the characters in the input buffer
-  // if there are too many for the inputSeveral array the extra chars will be lost
-
-  inputSeveral[0] = 0; // makes inputSeveral an empty string with just a terminator
-
-  byte ndx = 0;        // the index position for storing the character
-
-  if (Serial.available() > 0) {
-
-    while (Serial.available() > 0) { // keep going until buffer is empty
-      if (ndx > maxChars - 1) { // -1 because arrays count from 0
-        ndx = maxChars;     // if there are too many chars the extra ones are
-      }                     //   dumped into the last array element which will
-      //   be overwritten by the string terminator
-      inputSeveral[ndx] = Serial.read();
-      //need to add ignore newline (ASCII 13 as well)
-      if (inputSeveral[ndx] == 10) //read newline escape character, this must be active int he terminal for this escape feature to work!
-       {
-         notendofline=0;
-         inputSeveral[ndx] = 0; //terminate string with a null
-       }
-      ndx ++;
-
+int fitSelection(int fitChoice)
+{ //equivelant to a main function, basica program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
+  
+  if (fitChoice == 0)
+  {
+      return 0;  // selection was not a valid fit choice. Return with no action
+  }
+  // Linear
+  if(fitChoice == 1) 
+  { 
+    Serial.println(F("Fit Chosen: Linear"));
+    pointInputProcess (); 
+    // Error and warning checks for minimum points
+    if (totalPoints < 2)
+    {
+        pointNumberWarnings(2);
+        delay(500);
+        return 0;  // failed; returning to previous function 
     }
-
-    if (ndx > maxChars) {  // to make sure the terminator is not written beyond the array
-      ndx = maxChars;
+    else if (totalPoints == 2)
+    {
+       pointNumberWarnings(1);
+      
     }
-    inputSeveral[ndx] = 0; // add a zero terminator to mark the end of the string
+    delay(500);
+    manualPointEntry(totalPoints); //use manual points entry function to collect user input for x and y points, update global arrays for entered data
+    fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator  
+
+    return 1; // successfully ran linear fitting
+  }
+  // Quadratic
+  else if (fitChoice == 2) 
+  {
+    Serial.println("Fit Chosen: Quadratic");
+
+    pointInputProcess (); 
+
+    if (totalPoints < 3)
+    {
+        pointNumberWarnings(2);
+        delay(500);
+        return 0;  // failed; returning to previous function 
+    }
+    else if (totalPoints == 3)
+    {
+       pointNumberWarnings(1);
+      
+    }
+    delay(500);
+    manualPointEntry(totalPoints); // use manual points entry function to collect user input for x and y points, update global arrays for entered data
+    fabls_quad(totalPoints, px, py); // calculate quadratic regression
+
+    return 1;  //successfully ran
+  }
+  // Exponential
+  else if (fitChoice == 3) 
+  {
+    Serial.println("Fit Chosen: Exponential");
+
+    pointInputProcess (); 
+
+    if (totalPoints < 3)
+    {
+        pointNumberWarnings(2);
+        delay(500);
+        return 0;  // failed; returning to previous function 
+    }
+    else if (totalPoints == 3)
+    {
+       pointNumberWarnings(1);
+      
+    }
+    delay(500);
+    manualPointEntry(totalPoints);
+    fabls_exp(totalPoints, px, py); //calculate exponential regression
+
+    return 1;  //successfully ran
+  }
+  // Logarithmic
+  else if (fitChoice == 4) 
+  {
+    Serial.println("Fit Chosen: Logarithmic");
+
+   pointInputProcess (); 
+
+    if (totalPoints < 3)
+    {
+        pointNumberWarnings (2);
+        delay(500);
+        return 0;  // failed; returning to previous function 
+    }
+    else if (totalPoints == 3)
+    {
+       pointNumberWarnings (1);
+      
+    }
+    delay(500);
+    manualPointEntry(totalPoints);
+    fabls_log(totalPoints, px, py); //calculate logarithmic regressions
+
+    return 1; // successfully ran 
+  }
+  // Power
+  else if (fitChoice == 5) 
+  {
+    Serial.println("Fit Chosen: Power");
+
+    pointInputProcess (); 
+    
+    if (totalPoints < 3)
+    {
+        pointNumberWarnings(2);
+        delay(500);
+        return 0;  // failed; returning to previous function 
+    }
+    else if (totalPoints == 3)
+    {
+       pointNumberWarnings(1);
+      
+    }
+    delay(500);
+    
+    manualPointEntry(totalPoints);
+    fabls_power(totalPoints, px, py); //calculate power regressions
+
+    return 1; // successfully ran
+  }
+  // Polynomial
+  else if (fitChoice == 6)
+  {
+    Serial.println("Fit Chosen: Polynomial");
+    
+    Serial.print(F("Input desired degree polynomial: "));   // prompt user
+    int polynomialDegree = NumericIntegerInput();
+    Serial.println(polynomialDegree);
+
+    pointInputProcess (); 
+    
+    if (totalPoints < (polynomialDegree + 1))
+    {
+        pointNumberWarnings(2);
+        delay(500);
+        return 0;   // failed; returning to previous function 
+    }
+    else if (totalPoints == (polynomialDegree + 1))
+    {
+       pointNumberWarnings(2);
+      
+    }
+    delay(500);
+
+    manualPointEntry(totalPoints);
+    double regCoeff[(polynomialDegree + 1)] = {0};
+    fabls_polynomial(totalPoints, polynomialDegree, px, py, regCoeff); //calculate polynomial regressions
+    fabls_polyOutput(totalPoints, polynomialDegree, regCoeff, px, py);
+
+    return 1; // successfully ran
+  }
+  // Invalid
+  else 
+  {
+    Serial.println(F("Invalid choice. Restarting calibration process..."));
+    delay(500);
+    return 0;  // Restart, jumps backs to beginning
   }
 
-return notendofline;
-
+  return 0;  // default case - assuming invalid selection; should never reach this point
 }
 
-// A clean printf function for serial communication from Arduino boards, example developed from:  https://gist.github.com/asheeshr/9004783
-int ardprintf(char *str, ...)
+//Serial management and direct input read from serial
+void serial_flush(void) {
+  //read input buffer flush
+  //Serial.print("Pre-Flush Serial Buffer Fill Status: ");  //debug line
+  //Serial.println(Serial.available());  //debug line, pre-flush value
+  while (Serial.available()) Serial.read();
+  //Serial.print("Post Flush Serial Buffer Fill Status: ");  //debug line
+  //Serial.println(Serial.available());  //debug line, should be zero
+}
+
+void manualPointEntry (int i) //i is total points entered --needs to have total points and px,py passed as areguements versus global modification
+{
+    px = new double[totalPoints]; // Load x's into array
+    py = new double[totalPoints]; // Load y's into array
+    for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
+    //Enter X values
+    {
+      Serial.print("Input value for x");
+      Serial.print(i+1);
+      Serial.print(": ");
+      px[i] = (double)NumericFloatInput();
+      Serial.print("Entered Value: ");
+      Serial.println(px[i]);
+      delay(250); //nice, easy transisitonal delay to next input
+      
+      //Enter Y values
+      Serial.print("Input value for y");
+      Serial.print(i+1);
+      Serial.print(": ");
+      py[i] = (double)NumericFloatInput();
+      Serial.print("Entered Value: ");
+      Serial.println(py[i]);
+      delay(250);
+    }
+}
+
+int AnalogReadPointEntry () //i is total points entered --needs to have total points and px,py passed as areguements versus global modification
+{
+  double readx=0; //holder for the last X value readin
+  Serial.println (F("How many total points to sample? (1-20)"));
+  int totalpointstosample = NumericIntegerInput();
+  Serial.println (F("Ready to read Analog input as X values"));
+  Serial.print (F("Enter Analog pin (1-6) to read from: "));
+  int pinselection = NumericIntegerInput();
+  Serial.print (F("Use median or mean average reads (0=median, 1=average)"));
+  int mode = NumericIntegerInput();
+  Serial.print (F("How many sets of 3 measurements to average? (0 to 20): "));
+  int averages = NumericIntegerInput(); //mult by 3 for mean-average algorithm
+    px = new double[totalPoints]; // Load x's into array
+    py = new double[totalPoints]; // Load y's into array
+    for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
+      {
+      int entryloopremain = 1;//default to stay in entry loop for the point
+      while (entryloopremain == 1)
+       {
+  
+      //Measure X values
+  
+        if (mode==0) //select median algorithm to read points
+        {
+          readx = readSensorInputMedian(pinselection, averages, 0, 0, 0, 0);
+        }
+        else if (mode==1) //select mean averaging algorithm to read points
+        {
+          readx = readSensorInputSimpleAverage(pinselection, averages, 0, 0);
+        }
+        Serial.print("Measured Value (for x): ");
+        Serial.print(readx,reportingPrecision);
+        Serial.print("Do you want to keep this value?  [Accept(1),Redo(2),Abort Entry Process(3)]:");
+        int valuaacceptance = NumericIntegerInput();
+        if (valuaacceptance==1)
+        {
+          px[i] = readx;
+          entryloopremain = 0;
+        }
+        else if (valuaacceptance==2)
+        {
+          entryloopremain = 1; //loop just repeats
+          Serial.print(F("Repeating Point"));
+        }
+        else if (valuaacceptance==3)
+        {
+          Serial.print(F("Exiting Analog Read Process, return to previous menu"));
+          return 0; //return 0 indicating failed function completion
+        }
+        }
+      
+      Serial.println(px[i]);
+      delay(250); //nice, easy transisitonal delay to next input
+      
+      //Enter Y values
+      Serial.print("Please enter corresponding calibrated value for y");
+      Serial.print(i+1);
+      Serial.print(": ");
+      py[i] = (double)NumericFloatInput();
+      Serial.print("Entered Value: ");
+      Serial.println(py[i]);
+      delay(250);
+    }
+    Serial.print(F("Point entry complete"));
+    return 1;//return 1 indicating sucessful function operation
+}
+
+int NumericIntegerInput()
+{
+  serial_flush(); //flush Serial buffer to prepare for next input
+  while (Serial.available()==0)
+  {
+    //wait for user serial input
+  }
+  delay(250); //delay to allow buffered input to build up in this approach during serial transmission
+  
+  long SelectionfitChoice = Serial.parseInt(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
+  serial_flush(); //flush Serial buffer to prepare for next input
+  return ((int)SelectionfitChoice);
+}
+
+void CharArrayInput(char*inputarray, unsigned int maxchars)//maxchars is total entry alues, array must be maxchars+1 to accomodate the stop (NULL) char
+{
+  serial_flush(); //flush Serial buffer to prepare for next input
+  char readvalue = 0; //initialize as null
+  while (Serial.available()==0)
+  {
+    //wait for user serial input
+  }
+  delay(250); //delay to allow buffered input to build up in this approach during serial transmission
+  unsigned int count=0;
+  bool breakloop=0;
+  while ((count<maxchars && breakloop==0)) 
+  {
+    readvalue = Serial.read(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
+    if ((readvalue == 10) || (readvalue != 13))//newline or CR seen
+      {
+        readvalue = 0; //place in a null char
+        inputarray[count] = readvalue;
+        breakloop=1; //flag set to break loop on evaluation
+      }
+      count=count+1;//increase counter
+      inputarray[count] = 0; //always add a null character ahead of the count (incremented before this limeif it is larger than specified so array always ends with a null
+  }
+
+  
+  serial_flush(); //flush Serial buffer to prepare for next input
+}
+
+float NumericFloatInput()
+{
+  serial_flush(); //flush Serial buffer to prepare for next input
+  while (Serial.available()==0)
+  {
+    //wait for user serial input
+  }
+  delay(250); //delay to allow buffered input to build up in this approach during serial transmission
+  
+  float valueInput = Serial.parseFloat(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
+  serial_flush(); //flush Serial buffer to prepare for next input
+  return (valueInput);
+}
+
+//Printout formatting functions
+int ardprintf(char *str, ...) // A clean printf function for serial communication from Arduino boards, example developed from:  https://gist.github.com/asheeshr/9004783 (overloaded deff 1)
 {
   int i, count=0, j=0, flag=0;
   char temp[ARDBUFFER+1];
@@ -740,7 +993,7 @@ int ardprintf(char *str, ...)
   return count + 1;
 }
 
-int ardprintf(int floatPrecision, char *str, ...)
+int ardprintf(int floatPrecision, char *str, ...) // A clean printf function for serial communication from Arduino boards, example developed from:  https://gist.github.com/asheeshr/9004783 (overloaded deff 2)
 {
   int i, count=0, j=0, flag=0;
   char temp[ARDBUFFER+1];
@@ -788,6 +1041,56 @@ int ardprintf(int floatPrecision, char *str, ...)
   return count + 1;
 }
 
+//Math helper functions
+double ipow(double base, int exponent) //simplified calculation of power for an interger (rather than a float/double) exponent value
+{
+    double result = 1.0; //initialize
+    for (;;)
+    {
+        if (exponent & 1)
+            result *= base;
+        exponent >>= 1;
+        if (!exponent)
+            break;
+        base *= base;
+    }
+
+    return result;
+}
+
+double alog(double x)
+{  
+  return (x < 0) ? -log(-x) : ((x > 0) ? log(x) : 0);
+}
+
+double safeDiv(double numerator, double denominator)
+{
+    if (denominator == 0)
+    {
+        return 0.0;
+
+    }
+
+    else
+    {
+        return (numerator/denominator);
+
+    }
+}
+
+double averagecalc(int len, double* values)
+{
+   int index = 0;
+   long total = 0; //Initialize the total accumulator
+   
+   for(index = 0; index < len; index++) 
+   {
+      total = total + values[index]; //add in each value in array
+   }
+   return ((double)total/(double)len); //div by total array elements
+
+}
+
 // Extra goodness of fit information
 void determinationCoefficient(const int n, double *y, double *yRegression, const int regressors, double &rSquared, double &adjustedRSquared)
 {
@@ -819,33 +1122,63 @@ void determinationCoefficient(const int n, double *y, double *yRegression, const
     adjustedRSquared = 1.0-(((1.0-(rSquared))*(((double)n-1.0))/((double)n-((double)regressors+1.0))));  
 }
 
-double safeDiv(double numerator, double denominator)
-{
-    if (denominator == 0)
-    {
-        return 0.0;
 
-    }
-
-    else
-    {
-        return (numerator/denominator);
-
-    }
+//Text display functions, routine text displayed by functions to save space due to redundant literal vharacter arrays saved in prog flash or SRAM
+void regressionErrorHeader(){
+   Serial.print(F("X"));
+   Serial.print(F("         Y"));
+   Serial.print(F("         Calculated Y"));
+   Serial.print(F("       Absolute Error"));
+   Serial.println(F("     PercentError%"));
 }
 
-double averagecalc(int len, double* values)
+void displayFitChoiceMenu()
 {
-   int index = 0;
-   long total = 0; //Initialize the total accumulator
-   
-   for(index = 0; index < len; index++) 
-   {
-      total = total + values[index]; //add in each value in array
-   }
-   return ((double)total/(double)len); //div by total array elements
-
+    //Display opening menu
+    // Menu select for function to fit against
+  Serial.println();
+  Serial.println();
+  Serial.println(F("******Selection Fiting Menu******"));
+  Serial.println();
+  Serial.println(F("Select Regression Fitting Relationship: "));
+  Serial.println(F("  (1)Linear - Minimum two points"));
+  Serial.println(F("  (2)Quadratic (2nd Order Polynomial) - Minimum three points")); //Specific commonly used sub-form of the general polynomial case.
+  Serial.println(F("  (3)Exponential - Minimum three points, y != 0"));  // Double check restrictions on exp, log, power
+  Serial.println(F("  (4)Logarithmic - Minimum three points, x != 0"));
+  Serial.println(F("  (5)Power - Minimum three points, x != 0"));
+  Serial.println(F("  (6)Arb. Order Polynomial - Minimum points req. is equation order+1")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
+  Serial.println(F("  (0)Exit"));
+  Serial.println(F("Selection? (0-6): "));
 }
+
+int pointInputProcess () { //this repitious input process is executed as a function to save memory.
+    Serial.print(F("Input total points: "));   // prompt user
+    totalPoints = NumericIntegerInput();
+    Serial.println(totalPoints);
+    Serial.println(F("NOTE: X's are system values measured (often ADC values in arb. units), Y's are corresponding measurement calibrated values in final units"));
+    return totalPoints; //return total points value (this may be global, to eventually make a passed value)
+}
+
+void textSectionBreak(){
+      Serial.println(); //add a space for the printed return to offset it from inputs
+      Serial.println(F("******************"));
+      Serial.println(); //add a space for the printed return to offset it from inputs
+}
+
+void pointNumberWarnings (unsigned int error){
+    if (error==1)
+     {
+      Serial.println(F("WARNING - Minimum points met, but overdef. (more points) recommended."));
+     }
+   else if (error==2)
+     {
+      Serial.print(F("Too few points provided for specified function. Exiting..."));
+     }
+   else
+     {} //noting said if not a selected error from list
+}
+
+//EEPROM Handler Functions
 
 int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries){  //function in development to take care of writing the first part of the EEPROM.
   Serial.println("Preparing to write to EEPROM Header");
@@ -864,62 +1197,16 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
   strcat(datatowrite, totalOffset);
   strcat(datatowrite, sep);
 
-  Serial.print(F("Current Header values ready to be updated to EEPROM: "));
+  Serial.print(F("Current Header to be updated to EEPROM: "));
   Serial.println(datatowrite);
 
-  Serial.println(F("Saving Header info to EEPROM"));
+  Serial.println(F("Saving Header to EEPROM"));
   int EEPROMReadLocation = save_data(EEPROMFirstaddress, datatowrite);  //load the final values into EERPOM, use the program defined value as the inital offset from EEPROM start
-  Serial.print(F("Length of Header (from 0): "));
+  Serial.print(F("Header Length (from 0): "));
   Serial.println(EEPROMReadLocation);
   delay (10);
-  Serial.println(F("EEPROM Header Update completed..."));
+  Serial.println(F("Updated EEPROM Header"));
   return EEPROMReadLocation; //return last value location in EEPROM
-}
-
-int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* eepromoffsetread){
-  const int fields = 3;
-  char data[150]={};
-  //Read in header values from EEPROM.
-  EEPROM.begin(); //NOTE: this takes 0 arguments for AVR, but a value of 512 for ESP32
-  delay(20); //allow serial to print before starting EEPROM to avoid line cutoff
-  Serial.println(F("Reading Header in EEPROM"));
-  delay(20);
-  int count = 0;
-  int address = EEPROMFirstaddress; //start at lowest address
-  int returnedeepromvalue=0; 
-  int returnedentries = 0;
-  while (count < fields && (address<EEPROMFirstaddress+maxheaderreadaddress)){ //total field number to read in (total number of fields), must match total cases checked
-    char read_char = (char)EEPROM.read(address); 
-      #ifdef EEPROMOUT
-      Serial.print(F("Last EEPROM Read is: ")); //printout headers
-      Serial.print(read_char); //printout data
-      #endif
-    delay(1);
-    if (read_char == '#'){ //use # as section break between fields
-      Serial.println(data);
-      switch (count){
-        case 0: strcpy(configured_status, data); break;
-        case 1: strcpy(totalentriesread, data); break;
-        case 2: strcpy(eepromoffsetread, data); break;    
-      }
-      count++;
-      strcpy(data,"");
-    } 
-    else{
-      strncat(data, &read_char, 1);  
-      #ifdef EEPROMOUT
-      Serial.print(F("Interpreted character (between field # marker): ")); //printout headers
-      Serial.print(data); //printout data
-      Serial.println(); //printout separator, line break
-      #endif
-    }
-    ++address;
-  }
-  Serial.println(F("<--Read Complete (Header)")); 
-  delay(10);
-    returnedeepromvalue = atoi (eepromoffsetread); //convert returned array values to integers
-    returnedentries = atoi (totalentriesread);  //convert returned array values to integers
-    return returnedeepromvalue; //return the value as an integer that was read as the last EEPROM location
 }
 
 int WriteDefaultEERPOM()  //call this to write the default values to "partition" the EEPROM, returns last EEPROM address
@@ -1019,7 +1306,7 @@ int EEPROMReadLocation =0; //updated value for final EEPROM location
       strcat(datatowrite, towrite_cal_term10);
       strcat(datatowrite, sep);
   }
-  Serial.println(F("Current Default values ready to be updated to EEPROM: "));
+  Serial.println(F("Current Default values to be updated to EEPROM: "));
   Serial.println(datatowrite);
   Serial.println();
   Serial.println(F("Saving Defaults to EEPROM"));
@@ -1105,6 +1392,51 @@ int WriteCalEEPROM(int eepromoffset, char* towrite_entryvalue_name, char* towrit
   return EEPROMLocalReadLocation; //return current EEPROM location for last entry
 } //end of WriteCalEEPROM function
 
+int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* eepromoffsetread){
+  const int fields = 3;
+  char data[150]={};
+  //Read in header values from EEPROM.
+  EEPROM.begin(); //NOTE: this takes 0 arguments for AVR, but a value of 512 for ESP32
+  delay(20); //allow serial to print before starting EEPROM to avoid line cutoff
+  Serial.println(F("Reading Header in EEPROM"));
+  delay(20);
+  int count = 0;
+  int address = EEPROMFirstaddress; //start at lowest address
+  int returnedeepromvalue=0; 
+  int returnedentries = 0;
+  while (count < fields && (address<EEPROMFirstaddress+maxheaderreadaddress)){ //total field number to read in (total number of fields), must match total cases checked
+    char read_char = (char)EEPROM.read(address); 
+      #ifdef EEPROMOUT
+      Serial.print(F("Last EEPROM Read is: ")); //printout headers
+      Serial.print(read_char); //printout data
+      #endif
+    delay(1);
+    if (read_char == '#'){ //use # as section break between fields
+      Serial.println(data);
+      switch (count){
+        case 0: strcpy(configured_status, data); break;
+        case 1: strcpy(totalentriesread, data); break;
+        case 2: strcpy(eepromoffsetread, data); break;    
+      }
+      count++;
+      strcpy(data,"");
+    } 
+    else{
+      strncat(data, &read_char, 1);  
+      #ifdef EEPROMOUT
+      Serial.print(F("Read-In characters (between # marker): ")); //printout headers
+      Serial.print(data); //printout data
+      Serial.println(); //printout separator, line break
+      #endif
+    }
+    ++address;
+  }
+  Serial.println(F("<--Read Complete (Header)")); 
+  delay(10);
+    returnedeepromvalue = atoi (eepromoffsetread); //convert returned array values to integers
+    returnedentries = atoi (totalentriesread);  //convert returned array values to integers
+    return returnedeepromvalue; //return the value as an integer that was read as the last EEPROM location
+}
 
 int save_data(int offset, char* datalocal){
   //Mechanism called by another function to write pre-packaged data to the EEPROM
@@ -1118,7 +1450,7 @@ int save_data(int offset, char* datalocal){
     index = i;
   }
   //EEPROM.commit(); //Not required for AVR, only ESP32
-  Serial.print(F("EEPROM Write Function, started from address: "));
+  Serial.print(F("EEPROM Write Function started, address: "));
   Serial.println(offset);  // last EEPROM address written  //debug line
   Serial.print(F("EEPROM Write Function complete, total entries for session: ")); //debug line
   Serial.println(index);  // last EEPROM address written  //debug line
@@ -1126,6 +1458,69 @@ int save_data(int offset, char* datalocal){
   delay(10);
 } //end of save_data function define
 
+int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inputvaluename){
+  Serial.print (F("Save Regression to EEPROM (0=No, 1=Yes): "));
+  int selectionValue =  NumericIntegerInput();
+  int enteredcorrectly = 0;
+    if (selectionValue==1) //force to loop until user indicates correctly entered 
+      {
+          while (enteredcorrectly == 0)
+          {
+           Serial.print (F("Append or overwrite EEPROM? (0=Append, 1=Overwrite): "));
+           appendedquestion = NumericIntegerInput();
+           Serial.println();
+           Serial.print (F("Input Reference Name ("));  
+           Serial.print (inputvaluename-1);
+           Serial.print (F(" chars max): "));
+           CharArrayInput(inputvaluename, sizeof(inputvaluename-1));//function to read this in as inputvaluename and return by reference
+           Serial.println();
+           Serial.print (F("Save as recip. values? (0=No, 1=Yes): "));
+           invertedquestion = NumericIntegerInput();
+           Serial.print (F("All Previous values entered correctly, ready to save? (0=No(reenter), 1=Yes(save), 2 = Abort Save): "));
+           enteredcorrectly = NumericIntegerInput();
+           if (enteredcorrectly==2) //abort sequence
+             {
+              Serial.print (F("Saving to EEPROM Skipped"));
+              selectionValue = 0;
+              return selectionValue; //leave here
+             }
+          }
+     Serial.print (F("Saving to EEPROM...")); 
+    }
+    else if (selectionValue==0)
+    {
+      Serial.print (F("Saving to EEPROM Skipped"));
+    }
+  return selectionValue;
+  
+}
+
+void EEPROMStatusMessages (unsigned int statusinput){
+    if (statusinput==1)
+     {
+      Serial.print (F("Read-out EEPROM header length: "));
+     }
+   else if (statusinput==2)
+     {
+      Serial.print (F("Position to write data to: "));
+     }
+        else if (statusinput==3)
+     {
+      Serial.print (F("Written data current end address: "));
+     }
+        else if (statusinput==4)
+     {
+      Serial.print (F("Position to write data to: "));
+     }
+      else if (statusinput==5)
+     {
+      Serial.print (F("Returned final data written address position: "));
+     }
+   else
+     {} //noting said if not a selected error from list
+}
+
+//Sensor Input functions
 double readSensorInputMedian(int inputpin, int readcycles, bool enabSensorReadDelay, bool enabavgSensorReadDelay, int sensorReadDelay, int avgsensorReadDelay){  //input pin for analog signal, number of median reads to average, enable delays for median reads, enable delay for average reads, delay value between each median read, delay value between each average reading
   //performs multiple median reads then performs an average then performs a calibration from an analog input
   double middle_holder = 0;
@@ -1176,327 +1571,20 @@ double readSensorInputSimpleAverage(int inputpin, int readcycles, bool enabavgSe
  return (((holder/(double)readcycles))); //return calculated average of median read values
 }
 
-int process_data_int (const char * data) //process the serial string, for integer returns
-  {
-  // Display as a debug
-  Serial.print ("Input received: ");
-  Serial.println (data);
-  int integerreturn = atoi(inputSeveral);
-  return integerreturn;
-  }  // end of process_data
-
- float process_data_float (const char * data) //Process serial string, float return
-  {
-  // Display as a debug
-  Serial.print ("Input received: ");
-  Serial.println (data);
-  float floatreturn = atof(inputSeveral);
-  return floatreturn;
-  }  // end of process_data
-
-void flushAray (char* localinputSeveral) 
-{
-  for (int i=0; i<buffSize; i++)
-  {
-   localinputSeveral[i] = {0}; //flush the array with null characters
-  }
-}
-
-int fitSelection(int fitChoice)
-{ //equivelant to a main function, basica program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
-  
-  if (fitChoice == 0)
-  {
-      return 0;  // selection was not a valid fit choice. Return with no action
-  }
-  // Linear
-  if(fitChoice == 1) 
-  { 
-    Serial.println(F("Fit Chosen: Linear"));
-
-    Serial.print(F("Input total points: "));   // prompt user
-    totalPoints = NumericIntegerInput();
-    Serial.println(totalPoints);
-    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
-
-    // Error and warning checks for minimum points
-    if (totalPoints < 2)
-    {
-        Serial.print(F("At least two points needed for linear. Restarting calibration process..."));
-        delay(500);
-        return 0;  // failed; returning to previous function 
-    }
-    else if (totalPoints == 2)
-    {
-       Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
-      
-    }
-    delay(500);
-    manualPointEntry(totalPoints); //use manual points entry function to collect user input for x and y points, update global arrays for entered data
-    fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator  
-
-    return 1; // successfully ran linear fitting
-  }
-  // Quadratic
-  else if (fitChoice == 2) 
-  {
-    Serial.println("Fit Chosen: Quadratic");
-
-    Serial.print(F("Input total points: "));
-    totalPoints = NumericIntegerInput();
-    Serial.println(totalPoints);
-    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
-
-    if (totalPoints < 3)
-    {
-        Serial.print(F("At least three points needed for quadratic. Restarting calibration process..."));
-        delay(500);
-        return 0;  // failed; returning to previous function 
-    }
-    else if (totalPoints == 3)
-    {
-       Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
-      
-    }
-    delay(500);
-    manualPointEntry(totalPoints); // use manual points entry function to collect user input for x and y points, update global arrays for entered data
-    fabls_quad(totalPoints, px, py); // calculate quadratic regression
-
-    return 1;  //successfully ran
-  }
-  // Exponential
-  else if (fitChoice == 3) 
-  {
-    Serial.println("Fit Chosen: Exponential");
-
-    Serial.print(F("Input total points: "));
-    totalPoints = NumericIntegerInput();
-    Serial.println(totalPoints);
-    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
-
-    if (totalPoints < 3)
-    {
-        Serial.print(F("ERROR - At least three points needed for exponential. Restarting calibration process..."));
-        delay(500);
-        return 0;  // failed; returning to previous function 
-    }
-    else if (totalPoints == 3)
-    {
-       Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
-      
-    }
-    delay(500);
-    manualPointEntry(totalPoints);
-    fabls_exp(totalPoints, px, py); //calculate exponential regression
-
-    return 1;  //successfully ran
-  }
-  // Logarithmic
-  else if (fitChoice == 4) 
-  {
-    Serial.println("Fit Chosen: Logarithmic");
-
-    Serial.print(F("Input total points: "));
-    totalPoints = NumericIntegerInput();
-    Serial.println(totalPoints);
-    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
-
-    if (totalPoints < 3)
-    {
-        Serial.print(F("At least three points needed for logarithmic. Restarting calibration process..."));
-        delay(500);
-        return 0;  // failed; returning to previous function 
-    }
-    else if (totalPoints == 3)
-    {
-       Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
-      
-    }
-    delay(500);
-    manualPointEntry(totalPoints);
-    fabls_log(totalPoints, px, py); //calculate logarithmic regressions
-
-    return 1; // successfully ran 
-  }
-  // Power
-  else if (fitChoice == 5) 
-  {
-    Serial.println("Fit Chosen: Power");
-
-    Serial.print(F("Input total points: "));
-    totalPoints = NumericIntegerInput();
-    Serial.println(totalPoints);
-    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
-    
-    if (totalPoints < 3)
-    {
-        Serial.print(F("At least three points needed for power. Restarting calibration process..."));
-        delay(500);
-        return 0;  // failed; returning to previous function 
-    }
-    else if (totalPoints == 3)
-    {
-       Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
-      
-    }
-    delay(500);
-    
-    manualPointEntry(totalPoints);
-    fabls_power(totalPoints, px, py); //calculate power regressions
-
-    return 1; // successfully ran
-  }
-  // Polynomial
-  else if (fitChoice == 6)
-  {
-    Serial.println("Fit Chosen: Polynomial");
-    
-    Serial.print(F("Input desired degree of polynomial: "));   // prompt user
-    int polynomialDegree = NumericIntegerInput();
-    Serial.println(polynomialDegree);
-
-    Serial.print(F("Input total points: "));
-    totalPoints = NumericIntegerInput();
-    Serial.println(totalPoints);
-    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
-    
-    if (totalPoints < (polynomialDegree + 1))
-    {
-        Serial.print(F("Too few point provided for specified degree polynomial. Restarting calibration process..."));
-        delay(500);
-        return 0;   // failed; returning to previous function 
-    }
-    else if (totalPoints == (polynomialDegree + 1))
-    {
-       Serial.println(F("WARNING - Minimum points met for provided degree polynomial. Overdefined recommended."));
-      
-    }
-    delay(500);
-
-    manualPointEntry(totalPoints);
-    double regCoeff[(polynomialDegree + 1)] = {0};
-    fabls_polynomial(totalPoints, polynomialDegree, px, py, regCoeff); //calculate polynomial regressions
-    fabls_polyOutput(totalPoints, polynomialDegree, regCoeff, px, py);
-
-    return 1; // successfully ran
-  }
-  // Invalid
-  else 
-  {
-    Serial.println(F("Invalid choice. Restarting calibration process..."));
-    delay(500);
-    return 0;  // Restart, jumps backs to beginning
-  }
-
-  return 0;  // default case - assuming invalid selection; should never reach this point
-}
-
-void serial_flush(void) {
-  //read input buffer flush
-  //Serial.print("Pre-Flush Serial Buffer Fill Status: ");  //debug line
-  //Serial.println(Serial.available());  //debug line, pre-flush value
-  while (Serial.available()) Serial.read();
-  //Serial.print("Post Flush Serial Buffer Fill Status: ");  //debug line
-  //Serial.println(Serial.available());  //debug line, should be zero
-}
-
-void displayFitChoiceMenu()
-{
-    //Display opening menu
-    // Menu select for function to fit against
-  Serial.println();
-  Serial.println();
-  Serial.println(F("******Main Menu******"));
-  Serial.println();
-  Serial.println(F("Select Regression Fitting Relationship: "));
-  Serial.println(F("  (1)Linear - Minimum two points"));
-  Serial.println(F("  (2)Quadratic - Minimum three points")); //Specific commonly used sub-form of the general polynomial case.
-  Serial.println(F("  (3)Exponential - Minimum three points, y != 0"));  // Double check restrictions on exp, log, power
-  Serial.println(F("  (4)Logarithmic - Minimum three points, x != 0"));
-  Serial.println(F("  (5)Power - Minimum three points, x != 0"));
-  Serial.println(F("  (6)General-Form Polynomial - Minimum points = equation order")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
-  Serial.println(F("  (0)Exit"));
-  Serial.println(F("What is your selection?: "));
-}
-
-void manualPointEntry (int i) //i is total points entered
-{
-    px = new double[totalPoints]; // Load x's into array
-    py = new double[totalPoints]; // Load y's into array
-    for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
-    //Enter X values
-    {
-      ardprintf("Input value for x%d : ", i+1);        // printf for serial, function implemented below
-      px[i] = (double)NumericFloatInput();
-      Serial.print("Entered Value: ");
-      Serial.println(px[i]);
-      delay(500); //nice, easy transisitonal delay to next input
-      
-      //Enter Y values
-      ardprintf("Input value for y%d : ", i+1);
-      py[i] = (double)NumericFloatInput();
-      Serial.print("Entered Value: ");
-      Serial.println(py[i]);
-      delay(500);
-    }
-}
-
-int NumericIntegerInput()
-{
-  serial_flush(); //flush Serial buffer to prepare for next input
-  while (Serial.available()==0)
-  {
-    //wait for user serial input
-  }
-  delay(500); //delay to allow buffered input to build up in this approach during serial transmission
-  
-  long SelectionfitChoice = Serial.parseInt(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
-  serial_flush(); //flush Serial buffer to prepare for next input
-  return ((int)SelectionfitChoice);
-}
-
-float NumericFloatInput()
-{
-  serial_flush(); //flush Serial buffer to prepare for next input
-  while (Serial.available()==0)
-  {
-    //wait for user serial input
-  }
-  delay(500); //delay to allow buffered input to build up in this approach during serial transmission
-  
-  float valueInput = Serial.parseFloat(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
-  serial_flush(); //flush Serial buffer to prepare for next input
-  return (valueInput);
-}
-
-
-double ipow(double base, int exponent)
-{
-    double result = 1.0;
-    for (;;)
-    {
-        if (exponent & 1)
-            result *= base;
-        exponent >>= 1;
-        if (!exponent)
-            break;
-        base *= base;
-    }
-
-    return result;
-}
 
 void loop() 
 {
+  unsigned int selectedValue = 0; //initialize selection choice holder as 0
+  unsigned int runStatus = 0;  // Status of previous function's run, if an error is returned, this will come back as zero, chose next action accordingly
   displayFitChoiceMenu(); //display menu to user
-  int selectedValue = NumericIntegerInput();
-  int runStatus = fitSelection(NumericIntegerInput()); //take input from menu selection then process input and fits
+  selectedValue = NumericIntegerInput();
+  runStatus = fitSelection(NumericIntegerInput()); //take input from menu selection then process input and fits
 
-  if (runStatus == 0)
+  if (runStatus == 0) //function did not run to completion sucessfully, choose followup action
   {
-   Serial.print(F("Error: returning to main menu..."));
+   Serial.print(F("Error: returning to Selection Fiting Menu..."));
   }
-  else if (runStatus == 1)
+  else if (runStatus == 1) //function did run to completion sucessfully, choose followup action
   {
     Serial.print(F("Program successfully executed, restarting..."));
   }

@@ -4,7 +4,7 @@
  * Reads the value of each byte of the EEPROM and prints it
  * to the computer.
  * This example code is in the public domain.
- * //Michael Klopfer, Ph.D. Univ. Of California, Irvine
+ * //compiled from examples by Michael Klopfer, Ph.D. Univ. Of California, Irvine
  */
  
 #include <Arduino.h>
@@ -25,7 +25,7 @@ void setup() {
   }
   EEPROM.begin(); //this takes 0 arguments for AVR, but a value of 512 for ESP32
   delay(20);
-  Serial.print("Current EEPROM Size (in bytes): ");
+  Serial.print("Current EEPROM Memory Total Size (in bytes): ");
   Serial.println(EEPROM.length(), DEC);
   Serial.println("");
   #ifdef FLUSHEEPROM
@@ -67,7 +67,7 @@ void loop() {
     //address = 0; //use to repeat printout in a cont. loop
     while(1)
       {
-        //stop and hold here after eadout
+        //stop and hold here after readout
       }
     }
   
