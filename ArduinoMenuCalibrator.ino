@@ -294,7 +294,7 @@ void fabls_quad(unsigned int n,double *px,double *py)
    }
 }
 
-void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total number of points, order of regression, x-pints, y-pounts)
+void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, double *regCoeff) // Arguments: (Total number of points, order of regression, x-pints, y-pounts)
 { 
 //Based on polynomial regression examples:  https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/ (Manas Sharma, 2015) with elements of https://rosettacode.org/wiki/Polynomial_regression#C/ GSL Library 
   
@@ -320,7 +320,8 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
     for (i=0;i<=n;i++)
         B[i][n+1]=Y[i];                //load the values of Y as the last column of B(Normal Matrix but augmented)
     n=n+1;                //n is made n+1 because the Gaussian Elimination part below was for n equations, but here n is the degree of polynomial and for n degree we get n+1 equations
-    Serial.println(F("\nThe Normal(Augmented Matrix) is as follows:\n"));    
+    /*
+    Serial.println(F("\nThe Normal(Augmented Matrix) is as follows:\n"));   //printout calculation matrix 
     for (i=0;i<n;i++)            //print the Normal-augmented matrix
     {
         for (j=0;j<=n;j++)
@@ -330,6 +331,7 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
         }
             Serial.println();
     }    
+    */
     for (i=0;i<n;i++)                    //From now Gaussian Elimination starts(can be ignored) to solve the set of linear equations (Pivotisation)
         for (k=i+1;k<n;k++)
             if (B[i][i]<B[k][i])
@@ -356,7 +358,7 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
         a[i]=a[i]/B[i][i];            //now finally divide the rhs by the coefficient of the variable to be calculated
     }
     
-    Serial.println(F("\nThe values of the coefficients are as follows:\n"));
+    /*Serial.println(F("\nThe values of the coefficients are as follows:\n"));
     for (i=0;i<n;i++)
     {
         // Print the values of x^0,x^1,x^2,x^3,....    
@@ -364,11 +366,22 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
         Serial.print(i, reportingPrecision); //display with 4 decimal places
         Serial.print("=");
         Serial.println(a[i]); //end of line statement
-    }
-    Serial.println(); //Break between segments
+    }*/
 
-    Serial.print(F("Hence the fitted Polynomial is given by:\n y ="));
-    for (i=0;i<n;i++)
+  for (int i = 0; i < (n + 1); i++)  //copy array into reference returned array
+  {
+    regCoeff[i] = a[i];
+  }
+}
+
+
+void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, double *py)
+{
+   pyregress = new double[N];  // define holder for calculated regression values for all points
+   double averagepercenterrorHolder[N] = {0};
+   double averageabsoluteerrorHolder[N] = {0};
+   Serial.print(F("Hence the fitted Polynomial is given by:\n y ="));
+   for (int i = 0; i < (n + 1); i++) // total points is equal to n+1
     {
       if (i == 0) //supress the initial + sign in the display
          {
@@ -382,39 +395,55 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
       Serial.print(")");
       Serial.print("x^");
       Serial.print(i);
-    }
-    Serial.println(); //Break between segments
+    } 
 
+   Serial.println();  //Break between segments
+   
    Serial.print(F("X"));
    Serial.print(F("         Y"));
    Serial.print(F("         Calculated Y"));
    Serial.println(F("     PercentError%"));
-   for (unsigned int i = 0; i < N; ++i) //for all points
+   
+   for (int j = 0; j < N; ++j) //for all points
    {
     double y = 0; //set each term's calculation initialized at 0
-    for (int q=0; q<n; q++)  //for all terms
+    for (int q = 0; q < (n + 1); q++)  //for all terms
       { 
-        y = y + a[q]*pow(px[i],q); 
+        y = y + a[q]*ipow(px[j], q);  // y has ((some constant) * (x to a power)) being added to it repeatedly through the for loop 
       }
-
-      pyregress[i] = y;
       
-      double error = ((y - py[i])/py[i])*100;
-      ardprintf("%f      %f      %f             %f", px[i], py[i], y, error);
+      double error = ((y - py[j])/py[j])*100;
+      double absoluteError = y - py[j];
+      // ardprintf("%f      %f      %f             %f", px[j], py[j], y, error);
+      Serial.print(px[j], reportingPrecision);
+      Serial.print("      ");
+      Serial.print(py[j], reportingPrecision);
+      Serial.print("      ");
+      Serial.print(y, reportingPrecision);
+      Serial.print("      ");
+      Serial.println(error, reportingPrecision);
+      pyregress[j] = y;  // save regression value for group calculations
+      averagepercenterrorHolder [j] = error; //save into array during calculation
+      averageabsoluteerrorHolder[j] = absoluteError;  //save into array during calculation 
    }
    
-   double rSquaredReturn;
-   double adjRSquaredReturn;
-   determinationCoefficient(n, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
+   Serial.print("Average Absolute Error: ");
+   Serial.println(averagecalc(N, averageabsoluteerrorHolder), regressionPrecision);
+   Serial.print("Average Percent Error: ");
+   Serial.println(averagecalc(N, averagepercenterrorHolder),regressionPrecision);
+   
+   double rSquaredReturn = 0.0;
+   double adjRSquaredReturn = 0.0;
+   determinationCoefficient(N, py, pyregress, 1, rSquaredReturn, adjRSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
-   Serial.print(F("adjusted r^2 = "));
-   Serial.println(adjRSquaredReturn); 
+   //Serial.print(F("adjusted r^2 = "));
+   //Serial.println(adjRSquaredReturn); 
     
 
      if(reportToEEPROM == 1)
    {
-      int expressionTotalTerms = n;
+      int expressionTotalTerms = (N + 1);
       double regressionterms[expressionTotalTerms]; //holder for inverted calculated values
       bool reportedConfiguredStatus = 1;  // updated status for configure
       char invertedStatus[2];
@@ -425,7 +454,7 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
       {
           for (int q=0; q<expressionTotalTerms; q++)
           {
-          regressionterms[q] = (1/(a[i]));
+          regressionterms[q] = (1/(a[q]));
           }
       }
       itoa(reportInvertedValues, invertedStatus, 10);
@@ -446,6 +475,7 @@ void fabls_polynomial(int N, int n, double *px,double *py) // Arguments: (Total 
       //NOTE:  need to set up a case structure to accomodate to 10th order
       WriteCalEEPROM(offsetInEEPROM, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);
    }
+
 }
 
 
@@ -623,7 +653,8 @@ void fabls_power(unsigned int n,double *px,double *py)
    Serial.println(adjRSquaredReturn); // this is not true, just a place-holder for now
 }
 
-int readSeveralChars() {
+int readSeveralChars() 
+{
 int notendofline = 1;
   // this reads all the characters in the input buffer
   // if there are too many for the inputSeveral array the extra chars will be lost
@@ -1171,29 +1202,29 @@ void flushAray (char* localinputSeveral)
   }
 }
 
-void generalOperation(int fitChoice){ //equivelant to a main function, basica program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
+int fitSelection(int fitChoice)
+{ //equivelant to a main function, basica program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
   
   if (fitChoice == 0)
   {
-      Serial.print(F("No Entry Received, Reloading Menu..."));
-      delay(2000);
-      return;
+      return 0;  // selection was not a valid fit choice. Return with no action
   }
   // Linear
-  if(fitChoice == 1) { 
+  if(fitChoice == 1) 
+  { 
     Serial.println(F("Fit Chosen: Linear"));
 
     Serial.print(F("Input total points: "));   // prompt user
-    totalPoints = NumericIntergerInput();
+    totalPoints = NumericIntegerInput();
     Serial.println(totalPoints);
     Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
 
-    // Error and warning checks for minimum poiints
+    // Error and warning checks for minimum points
     if (totalPoints < 2)
     {
         Serial.print(F("At least two points needed for linear. Restarting calibration process..."));
-        delay(2000);
-        return;
+        delay(500);
+        return 0;  // failed; returning to previous function 
     }
     else if (totalPoints == 2)
     {
@@ -1202,211 +1233,163 @@ void generalOperation(int fitChoice){ //equivelant to a main function, basica pr
     }
     delay(500);
     manualPointEntry(totalPoints); //use manual points entry function to collect user input for x and y points, update global arrays for entered data
-    fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator 
+    fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator  
+
+    return 1; // successfully ran linear fitting
   }
   // Quadratic
-  else if (fitChoice == 2) {
+  else if (fitChoice == 2) 
+  {
     Serial.println("Fit Chosen: Quadratic");
 
     Serial.print(F("Input total points: "));
-    delay(2000);
-    readSeveralChars();
-    totalPoints = atoi(inputSeveral);
+    totalPoints = NumericIntegerInput();
     Serial.println(totalPoints);
+    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
 
     if (totalPoints < 3)
     {
         Serial.print(F("At least three points needed for quadratic. Restarting calibration process..."));
-        delay(2000);
-        return;
+        delay(500);
+        return 0;  // failed; returning to previous function 
     }
     else if (totalPoints == 3)
     {
        Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
       
     }
-    delay(3000);
-     px = new double[totalPoints];
-     py = new double[totalPoints];
-    for (uint8_t i = 0; i < totalPoints; ++i)
-    {
-      ardprintf("Input x%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      px[i] = atof(inputSeveral);
-      Serial.println(px[i]);
-      delay(1000);
-
-      ardprintf("Input y%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      py[i] = atof(inputSeveral);
-      Serial.println(py[i]);
-      delay(1000);
-    }
+    delay(500);
+    manualPointEntry(totalPoints); // use manual points entry function to collect user input for x and y points, update global arrays for entered data
     fabls_quad(totalPoints, px, py); // calculate quadratic regression
+
+    return 1;  //successfully ran
   }
   // Exponential
-  else if (fitChoice == 3) {
-    Serial.println(F("Fit Chosen: Exponential"));
+  else if (fitChoice == 3) 
+  {
+    Serial.println("Fit Chosen: Exponential");
 
     Serial.print(F("Input total points: "));
-    delay(2000);
-    readSeveralChars();
-    totalPoints = atoi(inputSeveral);
+    totalPoints = NumericIntegerInput();
     Serial.println(totalPoints);
+    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
 
     if (totalPoints < 3)
     {
         Serial.print(F("ERROR - At least three points needed for exponential. Restarting calibration process..."));
-        delay(2000);
-        return;
+        delay(500);
+        return 0;  // failed; returning to previous function 
     }
     else if (totalPoints == 3)
     {
        Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
       
     }
-    delay(3000);
-     px = new double[totalPoints];
-     py = new double[totalPoints];
-    //int arraySizex = sizeof(xp) / sizeof(px[0]); //EXAMPLE SIZE DETERMINATION
-    //for (int x=0; x < arraySize; x++)
-       //px[x] = 0;  //zero the array
-     
-    for (uint8_t i = 0; i < totalPoints; ++i)
-    {
-      ardprintf("Input x%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      px[i] = atof(inputSeveral);
-      Serial.println(px[i]);
-      delay(1000);
+    delay(500);
+    manualPointEntry(totalPoints);
+    fabls_exp(totalPoints, px, py); //calculate exponential regression
 
-      ardprintf("Input y%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      py[i] = atof(inputSeveral);
-      Serial.println(py[i]);
-      if (py[i] == 0)         // Catch zero point errors
-      {
-          Serial.println(F("ERROR - y's cannot be zero for exponential. Restarting calibration process... "));
-          delay(2000);
-          break;
-      }
-      delay(1000);
-    }
-    fabls_exp(totalPoints, px, py); //calculate exponential regression   
+    return 1;  //successfully ran
   }
   // Logarithmic
-  else if (fitChoice == 4) {
-    Serial.println(F("Fit Chosen: Logarithmic"));
+  else if (fitChoice == 4) 
+  {
+    Serial.println("Fit Chosen: Logarithmic");
 
     Serial.print(F("Input total points: "));
-    delay(2000);
-    readSeveralChars();
-    totalPoints = atoi(inputSeveral);
+    totalPoints = NumericIntegerInput();
     Serial.println(totalPoints);
+    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
 
     if (totalPoints < 3)
     {
         Serial.print(F("At least three points needed for logarithmic. Restarting calibration process..."));
-        delay(2000);
-        return;
+        delay(500);
+        return 0;  // failed; returning to previous function 
     }
     else if (totalPoints == 3)
     {
        Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
       
     }
-    delay(3000);
-     px = new double[totalPoints];
-     py = new double[totalPoints];
-    for (uint8_t i = 0; i < totalPoints; ++i)
-    {
-      ardprintf("Input x%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      px[i] = atof(inputSeveral);
-      Serial.println(px[i]);
-      if (px[i] == 0)
-      {
-          Serial.println(F("ERROR - x's cannot be zero for logarthimic. Restarting calibration process..."));
-          delay(2000);
-          break;
-      }
-      delay(1000);
-
-      ardprintf("Input y%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      py[i] = atof(inputSeveral);
-      Serial.println(py[i]);
-      delay(1000);
-    }
+    delay(500);
+    manualPointEntry(totalPoints);
     fabls_log(totalPoints, px, py); //calculate logarithmic regressions
+
+    return 1; // successfully ran 
   }
   // Power
-  else if (fitChoice == 5) {
-    Serial.println(F("Fit Chosen: Power"));
+  else if (fitChoice == 5) 
+  {
+    Serial.println("Fit Chosen: Power");
 
     Serial.print(F("Input total points: "));
-    delay(2000);
-    readSeveralChars();
-    totalPoints = atoi(inputSeveral);
+    totalPoints = NumericIntegerInput();
     Serial.println(totalPoints);
-
+    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
+    
     if (totalPoints < 3)
     {
         Serial.print(F("At least three points needed for power. Restarting calibration process..."));
-        delay(2000);
-        return;
+        delay(500);
+        return 0;  // failed; returning to previous function 
     }
     else if (totalPoints == 3)
     {
        Serial.println(F("WARNING - Minimum points met. Overdefined recommended."));
       
     }
-    delay(3000);
-     px = new double[totalPoints];
-     py = new double[totalPoints];
-    for (uint8_t i = 0; i < totalPoints; ++i)
-    {
-      ardprintf("Input x%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      px[i] = atof(inputSeveral);
-      Serial.println(px[i]);
-      if (px[i] == 0)
-      {
-        Serial.println(F("ERROR - x's cannot be zero for power. Restarting calibration process..."));
-        delay(2000);
-        break;
-      }
-      delay(1000);
-
-      ardprintf("Input y%d", i+1);
-      delay(2000);
-      readSeveralChars();
-      py[i] = atof(inputSeveral);
-      Serial.println(py[i]);
-      delay(1000);
-    }
+    delay(500);
+    
+    manualPointEntry(totalPoints);
     fabls_power(totalPoints, px, py); //calculate power regressions
+
+    return 1; // successfully ran
+  }
+  // Polynomial
+  else if (fitChoice == 6)
+  {
+    Serial.println("Fit Chosen: Polynomial");
+    
+    Serial.print(F("Input desired degree of polynomial: "));   // prompt user
+    int polynomialDegree = NumericIntegerInput();
+    Serial.println(polynomialDegree);
+
+    Serial.print(F("Input total points: "));
+    totalPoints = NumericIntegerInput();
+    Serial.println(totalPoints);
+    Serial.println(F("NOTE - X's are DAQ system values measured, Y's are final unit calibrated values"));
+    
+    if (totalPoints < (polynomialDegree + 1))
+    {
+        Serial.print(F("Too few point provided for specified degree polynomial. Restarting calibration process..."));
+        delay(500);
+        return 0;   // failed; returning to previous function 
+    }
+    else if (totalPoints == (polynomialDegree + 1))
+    {
+       Serial.println(F("WARNING - Minimum points met for provided degree polynomial. Overdefined recommended."));
+      
+    }
+    delay(500);
+
+    manualPointEntry(totalPoints);
+    double regCoeff[(polynomialDegree + 1)] = {0};
+    fabls_polynomial(totalPoints, polynomialDegree, px, py, regCoeff); //calculate polynomial regressions
+    fabls_polyOutput(totalPoints, polynomialDegree, regCoeff, px, py);
+
+    return 1; // successfully ran
   }
   // Invalid
-  else {
+  else 
+  {
     Serial.println(F("Invalid choice. Restarting calibration process..."));
-    delay(2000);
-    return;  // Restart, jumps backs to beginning
+    delay(500);
+    return 0;  // Restart, jumps backs to beginning
   }
 
-
-  // LOAD EEPROM
-  // Once input points are given and regression data is returned
-  // prompt user to send new calibration values to EEPROM
+  return 0;  // default case - assuming invalid selection; should never reach this point
 }
-
 
 void serial_flush(void) {
   //read input buffer flush
@@ -1458,7 +1441,7 @@ void manualPointEntry (int i) //i is total points entered
     }
 }
 
-int NumericIntergerInput()
+int NumericIntegerInput()
 {
   serial_flush(); //flush Serial buffer to prepare for next input
   while (Serial.available()==0)
@@ -1486,10 +1469,37 @@ float NumericFloatInput()
   return (valueInput);
 }
 
-void loop() {
+
+double ipow(double base, int exponent)
+{
+    double result = 1.0;
+    for (;;)
+    {
+        if (exponent & 1)
+            result *= base;
+        exponent >>= 1;
+        if (!exponent)
+            break;
+        base *= base;
+    }
+
+    return result;
+}
+
+void loop() 
+{
   displayFitChoiceMenu(); //display menu to user
-  generalOperation(NumericIntergerInput()); //take input from menu selection then process input and fits
-  
+  int selectedValue = NumericIntegerInput();
+  int runStatus = fitSelection(NumericIntegerInput()); //take input from menu selection then process input and fits
+
+  if (runStatus == 0)
+  {
+   Serial.print(F("Error: returning to main menu..."));
+  }
+  else if (runStatus == 1)
+  {
+    Serial.print(F("Program successfully executed, restarting..."));
+  }
   // deallocation reset array before executing new instance
   delete[] px;
   delete[] py;
