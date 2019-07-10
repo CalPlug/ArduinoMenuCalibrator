@@ -38,6 +38,7 @@ char totalentriesread_cached[5] = {0}; //read-in field values
 char eepromoffsetread_cached[6] = {0};  //read-in field values
 char invertedStatus[3] = {0};
 char configuredStatus[3] = {0};
+bool usecached = 0; //default do not use cached points
 
 int EEPROMCurrentPosition = 0;
 int EEPROMFirstaddress = 0; //define the offset for the first entered EEPROM value
@@ -896,11 +897,13 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     else if (totalPoints == 2)
     {
        pointNumberWarnings(1);
-      
     }
     delay(500);
     //manualPointEntry(totalPoints); //use manual points entry function to collect user input for x and y points, update global arrays for entered data
+    if (skipEntry!=1)
+    {
     dataEntrySelection(totalPoints);// select point entry method
+    }
     fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator  
 
     return 1; // successfully ran linear fitting
@@ -927,7 +930,10 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
       
     }
     delay(500);
-    dataEntrySelection (totalPoints);// select point entry method
+        if (skipEntry!=1)
+    {
+    dataEntrySelection(totalPoints);// select point entry method
+    }
     //manualPointEntry(totalPoints); // use manual points entry function to collect user input for x and y points, update global arrays for entered data
     fabls_quad(totalPoints, px, py); // calculate quadratic regression
 
@@ -954,7 +960,10 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     }
     delay(500);
     //manualPointEntry(totalPoints);
+        if (skipEntry!=1)
+    {
     dataEntrySelection(totalPoints);// select point entry method
+    }
     fabls_exp(totalPoints, px, py); //calculate exponential regression
 
     return 1;  //successfully ran
@@ -978,7 +987,10 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
       
     }
     delay(500);
-    dataEntrySelection (totalPoints);//added option to select point entry option
+        if (skipEntry!=1)
+    {
+    dataEntrySelection(totalPoints);// select point entry method
+    }
     //manualPointEntry(totalPoints);
     fabls_log(totalPoints, px, py); //calculate logarithmic regressions
 
@@ -1006,7 +1018,10 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     }
     delay(500);
     
-    dataEntrySelection (totalPoints);// select point entry method
+        if (skipEntry!=1)
+    {
+    dataEntrySelection(totalPoints);// select point entry method
+    }
     fabls_power(totalPoints, px, py); //calculate power regressions
 
     return 1; // successfully ran
@@ -1038,7 +1053,10 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     }
     delay(500);
 
-    manualPointEntry(totalPoints);
+        if (skipEntry!=1)
+    {
+    dataEntrySelection(totalPoints);// select point entry method
+    }
     double regCoeff[(polynomialDegree + 1)] = {0};
     fabls_polynomial(totalPoints, polynomialDegree, px, py, regCoeff); //calculate polynomial regressions
     fabls_polyOutput(totalPoints, polynomialDegree, regCoeff, px, py);
@@ -1070,11 +1088,22 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
   else if (fitChoice == 9) //not yet functioning correctly
   {
     totalPoints = 0; // 0 this off when other values are erased
+    //reset pointer allocation
+    delete[] px;
+    delete[] py;
+    delete[] pyregress;
     Serial.print("Pts removed from memory, restarting...");  
 
     return 1; // program restarts here
   }
- 
+    else if (fitChoice == 10) //not yet functioning correctly
+  {
+    usecached = !usecached; // 0 this off when other values are erased
+    //Serial.print("Cached: ");
+    //Serial.println(usecached,DEC);
+
+    return 1; // program restarts here
+  }
   // Invalid
   else 
   {
@@ -1365,7 +1394,6 @@ void displayFitChoiceMenu()
     //Display opening menu
     // Menu select for function to fit against
   Serial.println();
-  Serial.println();
   Serial.println(F("******Selection Fiting Menu******"));
   Serial.println();
   Serial.println(F("Select Regression Fitting Relationship: "));
@@ -1378,6 +1406,8 @@ void displayFitChoiceMenu()
   Serial.println(F("  (7)List Pts in Memory"));
   Serial.println(F("  (8)Manual Pt Entry"));
   Serial.println(F("  (9)Delete Current Points"));
+  //Serial.print(F("  (10)Toggle Enter New Points on fits, current status: "));
+  //Serial.println(usecached,DEC);
   Serial.println("  (0)Exit");
   Serial.print("Option (0-9): ");
 }
@@ -1841,12 +1871,13 @@ void adHocPointEntry()
 
 void loop() 
 {
+  bool dealocArrays=0;//keep arrays, flag is normal pos.
   unsigned int selectedValue = 0; //initialize selection choice holder as 0
   unsigned int runStatus = 0;  // Status of previous function's run, if an error is returned, this will come back as zero, chose next action accordingly 
   displayFitChoiceMenu(); //display menu to user
   selectedValue = NumericIntegerInput();
   Serial.println(); //add in line break after input comes in for selection
-  runStatus = fitSelection(NumericIntegerInput(),0); //take input from menu selection then process input and fits, skipentry argument in place to see if skip needed
+  runStatus = fitSelection(NumericIntegerInput(),usecached); //take input from menu selection then process input and fits, skipentry argument in place to see if skip needed
 
   if (runStatus == 0) //function did not run to completion sucessfully, choose followup action
   {
@@ -1856,8 +1887,14 @@ void loop()
   {
     Serial.print(F("Program Comp."));
   }
-  // deallocation reset array before executing new instance
-  delete[] px;
-  delete[] py;
-  delete[] pyregress;
+  if (dealocArrays ==1)
+  {
+     dealocArrays =0; //reset flag
+    // deallocation reset array before executing new instance if requested
+    delete[] px;
+    delete[] py;
+    delete[] pyregress;
+  }
+
+  
 }
