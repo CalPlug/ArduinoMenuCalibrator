@@ -1085,7 +1085,7 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     adHocPointEntry();  //Enter manual points
   }
 
-  else if (fitChoice == 9) //not yet functioning correctly
+  else if (fitChoice == 9) 
   {
     totalPoints = 0; // 0 this off when other values are erased
     //reset pointer allocation
@@ -1096,8 +1096,9 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
 
     return 1; // program restarts here
   }
-    else if (fitChoice == 10) //not yet functioning correctly
+    else if (fitChoice == 10) 
   {
+    Serial.print("By toggling this option to 1 or 'On', any fit \nselected will just use values stored in the cache.");
     usecached = !usecached; // 0 this off when other values are erased
     //Serial.print("Cached: ");
     //Serial.println(usecached,DEC);
@@ -1406,10 +1407,10 @@ void displayFitChoiceMenu()
   Serial.println(F("  (7)List Pts in Memory"));
   Serial.println(F("  (8)Manual Pt Entry"));
   Serial.println(F("  (9)Delete Current Points"));
-  //Serial.print(F("  (10)Toggle Enter New Points on fits, current status: "));
-  //Serial.println(usecached,DEC);
+  Serial.print(F("  (10)Toggle Enter New Points on fits, current status: "));
+  Serial.println(usecached,DEC);
   Serial.println("  (0)Exit");
-  Serial.print("Option (0-9): ");
+  Serial.print("Option (0-10): ");
 }
 
 void textSectionBreak(){
@@ -1434,7 +1435,7 @@ void pointNumberWarnings (unsigned int error){
 //EEPROM Handler Functions
 
 int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries){  //function in development to take care of writing the first part of the EEPROM.
-  Serial.println("Prep. EEPROM Header");
+  //Serial.println("Prep. EEPROM Header");
   char datatowrite[150] = {0};  //EEPROM entry character array holder
   char totalentries[4] = {0}; //holder
   char totalOffset[5] = {0}; //holder
@@ -1486,7 +1487,7 @@ char* towrite_cal_term10 = "0.0";
 int EEPROMReadLocation =0; //updated value for final EEPROM location
 
   char datatowrite[60] = {};  //EEPROM entry character array holder
-  Serial.println(F("Preparing to save to EEPROM"));
+  //Serial.println(F("Preparing to save to EEPROM"));
   char* sep = "#";
   if(update_configured_status == 1)
   {
@@ -1562,10 +1563,10 @@ int EEPROMReadLocation =0; //updated value for final EEPROM location
   Serial.println(F("Default values to be updated to EEPROM: "));
   Serial.println(datatowrite);
   Serial.println();
-  Serial.println(F("Saving New Defaults"));
+  //Serial.println(F("Saving New Defaults"));
   EEPROMReadLocation = save_data(eepromoffset, datatowrite);  //load the final values into EERPOM
   delay (10);
-  Serial.println(F("EEPROM Defaults Updated..."));
+  //Serial.println(F("EEPROM Defaults Updated..."));
   return EEPROMReadLocation; //return last EEPROM location
 } //end of WriteCalEEPROM function
   
@@ -1638,10 +1639,10 @@ int WriteCalEEPROM(int eepromoffset, char* towrite_entryvalue_name, char* towrit
   Serial.println(F("Data values to be updated to EEPROM: "));
   Serial.println(localdatatowrite);
   Serial.println();
-  Serial.println(F("Saving Values"));
+  //Serial.println(F("Saving Values"));
   EEPROMLocalReadLocation = save_data(eepromoffset, localdatatowrite);  //load the final values into EERPOM
   delay (10);
-  Serial.println(F("Values Updated..."));
+  //Serial.println(F("Values Updated..."));
   return EEPROMLocalReadLocation; //return current EEPROM location for last entry
 } //end of WriteCalEEPROM function
 
@@ -1684,7 +1685,7 @@ int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* e
     }
     ++address;
   }
-  Serial.println(F("<--Read Complete")); 
+  //Serial.println(F("<--Read Complete")); 
   delay(10);
     returnedeepromvalue = atoi (eepromoffsetread); //convert returned array values to integers
     returnedentries = atoi (totalentriesread);  //convert returned array values to integers
@@ -1693,7 +1694,7 @@ int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* e
 
 int save_data(int offset, char* datalocal){
   //Mechanism called by another function to write pre-packaged data to the EEPROM
-  Serial.println(F("Call to EEPROM Write Function"));
+  //Serial.println(F("Call to EEPROM Write Function"));
   delay (20);  //allow serial 
   EEPROM.begin(); //this takes 0 arguments for AVR, but a value of 512 for ESP32
   int index = 0; //variable to save final index location
@@ -1738,16 +1739,16 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
            enteredcorrectly = NumericIntegerInput();
            if (enteredcorrectly==2) //abort sequence
              {
-              Serial.println (F("Saving Skipped... Exiting"));
+              //Serial.println (F("Saving Skipped... Exiting"));
               selectionValue = 0;
               return selectionValue; //leave here
              }
           }
-     Serial.println (F("Saving...")); 
+     //Serial.println (F("Saving...")); 
     }
     else if (selectionValue==0)
     {
-      Serial.println (F("Saving Skipped... returning menus"));
+      //Serial.println (F("Saving Skipped... returning menus"));
     }
   return selectionValue;
   
@@ -1756,23 +1757,23 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
 void EEPROMStatusMessages (unsigned int statusinput){
     if (statusinput==1)
      {
-      Serial.print (F("Read-out EEPROM header length: "));
+      //Serial.print (F("Read-out EEPROM header length: "));
      }
    else if (statusinput==2)
      {
-      Serial.print (F("Position to write data to: "));
+      //Serial.print (F("Position to write data to: "));
      }
         else if (statusinput==3)
      {
-      Serial.print (F("Written data current end address: "));
+      //Serial.print (F("Written data current end address: "));
      }
         else if (statusinput==4)
      {
-      Serial.print (F("Position to write data to: "));
+      //Serial.print (F("Position to write data to: "));
      }
       else if (statusinput==5)
      {
-      Serial.print (F("Returned final data written address position: "));
+      //Serial.print (F("Returned final data written address position: "));
      }
    else
      {} //noting said if not a selected error from list
@@ -1885,6 +1886,8 @@ void loop()
   }
   else if (runStatus == 1) //function did run to completion sucessfully, choose followup action
   {
+    Serial.println();
+    Serial.println();
     Serial.print(F("Program Comp."));
   }
   if (dealocArrays ==1)
@@ -1895,6 +1898,4 @@ void loop()
     delete[] py;
     delete[] pyregress;
   }
-
-  
-}
+} 
