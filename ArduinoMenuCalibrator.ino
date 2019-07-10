@@ -872,9 +872,8 @@ void fabls_power(unsigned int n,double *px,double *py)
    delay(1000); //end function after delay, make sure buffer is cleared
 }
 
-int fitSelection(int fitChoice)
+int fitSelection(int fitChoice, uint8_t skipEntry)
 { //equivelant to a main function, basic program operation from this function is called by the loop.  program resets when this function breaks causing it to be called again
-  
   if (fitChoice == 0)
   {
       return 0;  // selection was not a valid fit choice. Return with no action
@@ -882,8 +881,11 @@ int fitSelection(int fitChoice)
   // Linear
   if(fitChoice == 1) 
   { 
-    Serial.println(F("Fit Chose: Linear"));
+    Serial.println(F("Fit: Linear"));
+    if (skipEntry!=1)
+    {
     pointInputProcess (); 
+    }
     // Error and warning checks for minimum points
     if (totalPoints < 2)
     {
@@ -908,7 +910,10 @@ int fitSelection(int fitChoice)
   {
     Serial.println("Fit Chose: Quadratic");
 
+    if (skipEntry!=1)
+    {
     pointInputProcess (); 
+    }
 
     if (totalPoints < 3)
     {
@@ -931,8 +936,11 @@ int fitSelection(int fitChoice)
   // Exponential
   else if (fitChoice == 3) 
   {
-    Serial.println("Fit Chose: Exponential");
-    pointInputProcess(); 
+    Serial.println("Fit: Exponential");
+  if (skipEntry!=1)
+    {
+    pointInputProcess (); 
+    }
     // Error and warning checks for minimum points
     if (totalPoints < 3)
     {
@@ -954,7 +962,7 @@ int fitSelection(int fitChoice)
   // Logarithmic
   else if (fitChoice == 4) 
   {
-    Serial.println("Fit Chose: Logarithmic");
+    Serial.println("Fit: Logarithmic");
 
    pointInputProcess (); 
 
@@ -979,9 +987,11 @@ int fitSelection(int fitChoice)
   // Power
   else if (fitChoice == 5) 
   {
-    Serial.println("Fit Chose: Power");
-
+    Serial.println("Fit: Power");
+    if (skipEntry!=1)
+    {
     pointInputProcess (); 
+    }
     
     if (totalPoints < 3)
     {
@@ -1004,13 +1014,16 @@ int fitSelection(int fitChoice)
   // Polynomial
   else if (fitChoice == 6)
   {
-    Serial.println("Fit Chose: Polynomial");
+    Serial.println("Fit: Polynomial");
     
-    Serial.print(F("Degree of polynomial: "));   // prompt user
+    Serial.print(F("Polynomial Degree: "));   // prompt user
     int polynomialDegree = NumericIntegerInput();
     Serial.println(polynomialDegree);
 
+    if (skipEntry!=1)
+    {
     pointInputProcess (); 
+    }
     
     if (totalPoints < (polynomialDegree + 1))
     {
@@ -1065,7 +1078,7 @@ int fitSelection(int fitChoice)
   // Invalid
   else 
   {
-    Serial.println(F("Invalid choice. Restarting calibration..."));
+    Serial.println(F("Invalid sel. Res. calibration..."));
     delay(500);
     return 0;  // Restart, jumps backs to beginning
   }
@@ -1090,20 +1103,20 @@ int manualPointEntry (int i) //i is total points entered --needs to have total p
     for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
     //Enter X values
     {
-      Serial.print("Input value - x");
+      Serial.print("Input val - x");
       Serial.print(i+1);
       Serial.print(": ");
       px[i] = (double)NumericFloatInput();
-      Serial.print(" Entered Value: ");
+      Serial.print(" Entered Val: ");
       Serial.println(px[i]);
       delay(250); //nice, easy transisitonal delay to next input
       
       //Enter Y values
-      Serial.print("Input value - y");
+      Serial.print("Input val - y");
       Serial.print(i+1);
       Serial.print(": ");
       py[i] = (double)NumericFloatInput();
-      Serial.print(" Entered Value: ");
+      Serial.print(" Entered Val: ");
       Serial.println(py[i]);
       delay(250);
     }
@@ -1129,13 +1142,13 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
   px = new double[totalPoints]; // Load x's into array
   py = new double[totalPoints]; // Load y's into array
   double readx=0; //holder for the last X value readin
-  Serial.print (("Enter Analog pin to read from (often 0-5): "));
+  Serial.print (("Enter Analog pin (often 0-5): "));
   int pinselection = NumericIntegerInput();
   Serial.println ();
   Serial.print (("(0)Median OR (1)Mean?"));  //can be used to promt for use of median or mean (average) function for calculation
   int mode = NumericIntegerInput();
   Serial.println ();
-  Serial.print (("How many sets of 3 measurements to avg?(0 to 20): "));
+  Serial.print (("How mny. sets of 3 meas. to avg?(0 to 20): "));
   int averages = NumericIntegerInput(); //mult by 3 for mean-average algorithm
   Serial.println ();
 
@@ -1155,9 +1168,9 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
         {
           readx = readSensorInputMedian(pinselection, averages, 0, 0, 0, 0);
         }
-        Serial.print("Measured x-value: ");
+        Serial.print("Measured x-val: ");
         Serial.print(readx,reportingPrecision);
-        Serial.print("   <--Do you want to keep this value? [Yes(1),Redo(2),Abort(3)]:");
+        Serial.print("   <--keep this value? [Yes(1),Redo(2),Abort(3)]:");
         int valuaacceptance = NumericIntegerInput();
         if (valuaacceptance==1)
         {
@@ -1171,7 +1184,7 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
         }
         else if (valuaacceptance==3)
         {
-          Serial.print(("Exiting Analog Read, return to prev menu"));
+          //Serial.print(("Exiting Analog Read, return to prev menu"));
           return 0; //return 0 indicating failed function completion
         }
         }
@@ -1188,7 +1201,7 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
       Serial.println(py[i]);
       delay(250);
     }
-    Serial.print(("Pt entry complete"));
+    //Serial.print(("Pt entry complete"));
     return 1;//return 1 indicating sucessful function operation
 }
 
@@ -1287,13 +1300,11 @@ double safeDiv(double numerator, double denominator)
     if (denominator == 0)
     {
         return 0.0;
-
     }
 
     else
     {
         return (numerator/denominator);
-
     }
 }
 
@@ -1393,7 +1404,7 @@ void pointNumberWarnings (unsigned int error){
 //EEPROM Handler Functions
 
 int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries){  //function in development to take care of writing the first part of the EEPROM.
-  Serial.println("Preparing to write EEPROM Header");
+  Serial.println("Prep. EEPROM Header");
   char datatowrite[150] = {0};  //EEPROM entry character array holder
   char totalentries[4] = {0}; //holder
   char totalOffset[5] = {0}; //holder
@@ -1412,12 +1423,12 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
   Serial.print(F("Header created: "));
   Serial.println(datatowrite);
 
-  Serial.println(F("Saving Header"));
+  //Serial.println(F("Saving Header"));
   int EEPROMReadLocation = save_data(EEPROMFirstaddress, datatowrite);  //load the final values into EERPOM, use the program defined value as the inital offset from EEPROM start
   Serial.print(F("Header Length (from 0): "));
   Serial.println(EEPROMReadLocation);
   delay (10);
-  Serial.println(F("New Header"));
+  //Serial.println(F("New Header"));
   return EEPROMReadLocation; //return last value location in EEPROM
 }
 
@@ -1687,13 +1698,13 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
            Serial.print (F(" chars max.): "));
            Serial.println();
            CharArrayInput(inputvaluename, (inputaraylength));//function to read this in as inputvaluename and return by reference
-           Serial.print (F("Name Provided: "));
+           Serial.print (F("Inputted: "));
            Serial.println (inputvaluename);
            Serial.println();
            Serial.print (F("Save as recip. values? (0=No, 1=Yes): "));
            invertedquestion = NumericIntegerInput();
            Serial.println();
-           Serial.println (F("All Prev values entered correctly, save? (0=Reenter values, 1=Save, 2=Abort Save): "));
+           Serial.println (F("All Prev values entered correctly, save? (0=Reenter vals, 1=Save, 2=Abort): "));
            enteredcorrectly = NumericIntegerInput();
            if (enteredcorrectly==2) //abort sequence
              {
@@ -1835,15 +1846,15 @@ void loop()
   displayFitChoiceMenu(); //display menu to user
   selectedValue = NumericIntegerInput();
   Serial.println(); //add in line break after input comes in for selection
-  runStatus = fitSelection(NumericIntegerInput()); //take input from menu selection then process input and fits
+  runStatus = fitSelection(NumericIntegerInput(),0); //take input from menu selection then process input and fits, skipentry argument in place to see if skip needed
 
   if (runStatus == 0) //function did not run to completion sucessfully, choose followup action
   {
-   Serial.print(F("ERR: returning to Selection Fitting Menu..."));
+   Serial.print(F("ERR: ret. to Selection Fitting Menu..."));
   }
   else if (runStatus == 1) //function did run to completion sucessfully, choose followup action
   {
-    Serial.print(F("Program done"));
+    Serial.print(F("Program Comp."));
   }
   // deallocation reset array before executing new instance
   delete[] px;
