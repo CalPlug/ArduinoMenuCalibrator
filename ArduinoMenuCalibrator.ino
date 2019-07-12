@@ -1,4 +1,4 @@
-// Arduino Based Multi-form Least-Squares Regression Calibration Utility
+//Arduino Based Multi-form Least-Squares Regression Calibration Utility
 //Development by Avinash Pai and Bryan Karimi with component contributions cited.
 //Note: This program uses cited numeric calculation methods developed in part or in whole by other contributers.  The developers of this utility thank these authors for helping us develop this utility!
 //Released under GNU Licence, Copyright (2019) Regents of the University of California 
@@ -57,7 +57,7 @@ void setup() {
   
   //an IFDEF is used to activate the EEPROM defaulter if enabled
   #ifdef DEFAULTTHEEEPROM
-  WriteDefaultEERPOM(); //run this for a vigin chip
+  WriteDefaultEEPROM(); //run this for a vigin chip
   #endif 
 }
 
@@ -1087,6 +1087,8 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
   else if (fitChoice == 8)
   {
     adHocPointEntry();  //Enter manual points
+
+    return 1; // successfully ran
   }
 
   else if (fitChoice == 9) 
@@ -1306,7 +1308,7 @@ float NumericFloatInput()
 }
 
 int pointInputProcess () 
-{ //this repitious input process is executed as a function to save memory.
+{ //this repetitious input process is executed as a function to save memory.
     Serial.print(F("Input total pts: "));   // prompt user
     totalPoints = NumericIntegerInput();
     Serial.println(totalPoints);
@@ -1445,10 +1447,11 @@ void pointNumberWarnings (unsigned int error){
 
 //EEPROM Handler Functions
 
-int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries){  //function in development to take care of writing the first part of the EEPROM.
-  #ifdef EEPROMDEBUG;
+int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries)
+{  //function in development to take care of writing the first part of the EEPROM.
+  #ifdef EEPROMDEBUG
   Serial.println("Prep. EEPROM Header");
-  #endif;
+  #endif
   char datatowrite[150] = {0};  //EEPROM entry character array holder
   char totalentries[4] = {0}; //holder
   char totalOffset[5] = {0}; //holder
@@ -1467,46 +1470,46 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
   Serial.print(F("Header created: "));
   Serial.println(datatowrite);
 
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("Saving Header"));
-  #endif;
+  #endif
   int EEPROMReadLocation = save_data(EEPROMFirstaddress, datatowrite);  //load the final values into EERPOM, use the program defined value as the inital offset from EEPROM start
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.print(F("Header Length (from 0): "));
   Serial.println(EEPROMReadLocation);
-  #endif;
+  #endif
   delay (10);
   Serial.println(F("New Header"));
   return EEPROMReadLocation; //return last value location in EEPROM
 }
 
-int WriteDefaultEERPOM()  //call this to write the default values to "partition" the EEPROM, returns last EEPROM address
+int WriteDefaultEEPROM()  //call this to write the default values to "partition" the EEPROM, returns last EEPROM address
 {
-bool update_configured_status = 1; //indicate to update this status with what is placed below
-int eepromoffset = EEPROMFirstaddress; //set as start address
-char* towrite_configured = "0"; // update status flag (data good flag) as not configured
-char* totalentriestoeeprom = "0";
-char* totaloffsetinend = "0";
-char* towrite_value_name = "demo";
-char* towrite_type_of_regression = "demo";
-char* expression_terms = "0.0";
-char* towrite_inverted = "0.0";
-char* towrite_cal_term1 = "0.0";
-char* towrite_cal_term2 = "0.0";
-char* towrite_cal_term3 = "0.0";
-char* towrite_cal_term4 = "0.0";
-char* towrite_cal_term5 = "0.0";
-char* towrite_cal_term6 = "0.0";
-char* towrite_cal_term7 = "0.0";
-char* towrite_cal_term8 = "0.0";
-char* towrite_cal_term9 = "0.0";
-char* towrite_cal_term10 = "0.0"; 
-int EEPROMReadLocation =0; //updated value for final EEPROM location
+  bool update_configured_status = 1; //indicate to update this status with what is placed below
+  int eepromoffset = EEPROMFirstaddress; //set as start address
+  char* towrite_configured = "0"; // update status flag (data good flag) as not configured
+  char* totalentriestoeeprom = "0";
+  char* totaloffsetinend = "0";
+  char* towrite_value_name = "demo";
+  char* towrite_type_of_regression = "demo";
+  char* expression_terms = "0.0";
+  char* towrite_inverted = "0.0";
+  char* towrite_cal_term1 = "0.0";
+  char* towrite_cal_term2 = "0.0";
+  char* towrite_cal_term3 = "0.0";
+  char* towrite_cal_term4 = "0.0";
+  char* towrite_cal_term5 = "0.0";
+  char* towrite_cal_term6 = "0.0";
+  char* towrite_cal_term7 = "0.0";
+  char* towrite_cal_term8 = "0.0";
+  char* towrite_cal_term9 = "0.0";
+  char* towrite_cal_term10 = "0.0"; 
+  int EEPROMReadLocation = 0; //updated value for final EEPROM location
 
   char datatowrite[60] = {};  //EEPROM entry character array holder
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("Preparing to save to EEPROM"));
-  #endif;
+  #endif
   char* sep = "#";
   if(update_configured_status == 1)
   {
@@ -1582,14 +1585,14 @@ int EEPROMReadLocation =0; //updated value for final EEPROM location
   Serial.println(F("Default values to be updated to EEPROM: "));
   Serial.println(datatowrite);
   Serial.println();
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("Saving New Defaults"));
-  #endif;
-  EEPROMReadLocation = save_data(eepromoffset, datatowrite);  //load the final values into EERPOM
+  #endif
+  EEPROMReadLocation = save_data(eepromoffset, datatowrite);  //load the final values into EEPROM
   delay (10);
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("EEPROM Defaults Updated..."));
-  #endif;
+  #endif
   return EEPROMReadLocation; //return last EEPROM location
 } //end of WriteCalEEPROM function
   
@@ -1662,14 +1665,14 @@ int WriteCalEEPROM(int eepromoffset, char* towrite_entryvalue_name, char* towrit
   Serial.println(F("Data values to be updated to EEPROM: "));
   Serial.println(localdatatowrite);
   Serial.println();
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("Saving Values"));
-  #endif;
+  #endif
   EEPROMLocalReadLocation = save_data(eepromoffset, localdatatowrite);  //load the final values into EERPOM
   delay (10);
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("Values Updated..."));
-  #endif;
+  #endif
   return EEPROMLocalReadLocation; //return current EEPROM location for last entry
 } //end of WriteCalEEPROM function
 
@@ -1712,9 +1715,9 @@ int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* e
     }
     ++address;
   }
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("<--Read Complete")); 
-  #endif;
+  #endif
   delay(10);
     returnedeepromvalue = atoi (eepromoffsetread); //convert returned array values to integers
     returnedentries = atoi (totalentriesread);  //convert returned array values to integers
@@ -1723,9 +1726,9 @@ int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* e
 
 int save_data(int offset, char* datalocal){
   //Mechanism called by another function to write pre-packaged data to the EEPROM
-  #ifdef EEPROMDEBUG;
+  #ifdef EEPROMDEBUG
   Serial.println(F("Call to EEPROM Write Function"));
-  #endif;
+  #endif
   delay (20);  //allow serial 
   EEPROM.begin(); //this takes 0 arguments for AVR, but a value of 512 for ESP32
   int index = 0; //variable to save final index location
@@ -1770,57 +1773,56 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
            enteredcorrectly = NumericIntegerInput();
            if (enteredcorrectly==2) //abort sequence
              {
-              #ifdef EEPROMDEBUG;
+              #ifdef EEPROMDEBUG
               Serial.println (F("Saving Skipped... Exiting"));
-              #endif;
+              #endif
               selectionValue = 0;
               return selectionValue; //leave here
              }
           }
-     #ifdef EEPROMDEBUG;
+     #ifdef EEPROMDEBUG
      Serial.println (F("Saving...")); 
-     #endif;
+     #endif
     }
     else if (selectionValue==0)
     {
-      #ifdef EEPROMDEBUG;
+      #ifdef EEPROMDEBUG
       Serial.println (F("Saving Skipped... returning menus"));
-      #endif;
+      #endif
     }
   return selectionValue;
-  
 }
 
 void EEPROMStatusMessages (unsigned int statusinput){
     if (statusinput==1)
      {
-      #ifdef EEPROMDEBUG;
+      #ifdef EEPROMDEBUG
       Serial.print (F("Read-out EEPROM header length: "));
-      #endif;
+      #endif
      }
    else if (statusinput==2)
      {
-      #ifdef EEPROMDEBUG;
+      #ifdef EEPROMDEBUG
       Serial.print (F("Position to write data to: "));
-      #endif;
+      #endif
      }
         else if (statusinput==3)
      {
-      #ifdef EEPROMDEBUG;
+      #ifdef EEPROMDEBUG
       Serial.print (F("Written data current end address: "));
-      #endif;
+      #endif
      }
         else if (statusinput==4)
      {
-      #ifdef EEPROMDEBUG;
+      #ifdef EEPROMDEBUG
       Serial.print (F("Position to write data to: "));
-      #endif;
+      #endif
      }
       else if (statusinput==5)
      {
-      #ifdef EEPROMDEBUG;
+      #ifdef EEPROMDEBUG
       Serial.print (F("Returned final data written address position: "));
-      #endif;
+      #endif
      }
    else
      {} //nothing said if not a selected error from list
