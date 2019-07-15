@@ -25,7 +25,7 @@ volatile uint8_t totalPoints = 0;  //declare default case of 0 points, total poi
 //Allows the output to be written to the EEPROM in a common format that can be extended on in multiple writes.  An initial flag is used as a quick test for readback to verify if valud values have been already pusghed to the EEPROM.  on the second value set, this write is supressed with the EEPROM offset provided so the values in the EEPROM for all sensors are sequenctial.
 //#define EEPROMOUT //when defined, debug is enabled to read out header info when function is called
 //#define DEFAULTTHEEEPROM  //This is normally commented out to turn off by default during normal operation!  When turned on the EEPROM is defaulted at the beginning of the Setup()   Note: turn this on and run once if new chip to put in the field separators in place in the EEPROM to overwite later - consider this a partition step.  Typically run this for a vigin chip
-#define EEPROMAppend //If selected the EEPROm will append to last entered value, if not defined, the latest value will overwrite and the header in the EEPROM will be adjusted accordingly
+//#define EEPROMAppend //If selected the EEPROm will append to last entered value, if not defined, the latest value will overwrite and the header in the EEPROM will be adjusted accordingly
 #define reportInvertedValues 0  //  store values in EEPROM as the inverse, often used for very small decimals
 #define EEPROMVariableBufferSize 25 
 #define EEPROMVariableLength 12
@@ -171,12 +171,16 @@ void fabls_linear(unsigned int n,double *px,double *py)
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding 
-      #ifdef EEPROMAppend
-      WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-      #endif
-      #ifndef EEPROMAppend
-      WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-      #endif
+      if(append == 1)
+      {
+        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+        Serial.println("We made it to append.");
+      }
+      if(append == 2)
+      {
+        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+        Serial.println("We made it to overwrite.");
+      }
     }
   
    delay(1000); //end function after delay, make sure buffer is cleared
@@ -313,12 +317,16 @@ void fabls_quad(unsigned int n,double *px,double *py)
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding 
-      #ifdef EEPROMAppend
-      WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-      #endif
-      #ifndef EEPROMAppend
-      WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-      #endif
+      if(append == 1)
+      {
+        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+        Serial.println("We made it to append.");
+      }
+      if(append == 2)
+      {
+        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+        Serial.println("We made it to overwrite.");
+      }
     }
   
    delay(1000); //end function after delay, make sure buffer is cleared
@@ -474,8 +482,13 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
    Serial.println(rSquaredReturn);
    //Serial.print(F("adjusted r^2 = ")); //adjusted R squared not used in this example
    //Serial.println(adjRSquaredReturn);   //adjusted R squared not used in this example
-    
-     if(reportToEEPROM == 1)
+
+   textSectionBreak();
+   int append = 1;
+   int inverted = 0; 
+   char entryname[ENTRYNAMEMAX]={0};//entry name holder
+   reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status 
+   if(reportToEEPROM == 1)
    {
       int expressionTotalTerms = (N + 1);
       double regressionterms[expressionTotalTerms]; //holder for inverted calculated values
@@ -507,7 +520,20 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
         }
       }
       //NOTE:  need to set up a case structure to accomodate to 10th order
-      WriteCalEEPROM(offsetInEEPROM, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);
+      
+
+      Serial.println("We made it past WriteCalEEPROM");
+
+      if(append == 1)
+      {
+        WriteCalEEPROM(EEPROMCurrentPosition, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition); //Append option: update the header after the last write, write in last EEPROM address location
+        Serial.println("We made it to append.");
+      }
+      if(append == 2)
+      {
+        WriteCalEEPROM(offsetInEEPROM, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+        Serial.println("We made it to overwrite."); 
+      }
    }
 }
 
@@ -622,12 +648,16 @@ void fabls_exp(unsigned int n,double *px,double *py)
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding 
-      #ifdef EEPROMAppend
-      WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-      #endif
-      #ifndef EEPROMAppend
-      WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-      #endif
+      if(append == 1)
+      {
+        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+        Serial.println("We made it to append.");
+      }
+      if(append == 2)
+      {
+        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+        Serial.println("We made it to overwrite.");
+      }
     }
   
    delay(1000); //end function after delay, make sure buffer is cleared
@@ -741,12 +771,16 @@ void fabls_log(unsigned int n,double *px,double *py)
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding 
-      #ifdef EEPROMAppend
-      WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-      #endif
-      #ifndef EEPROMAppend
-      WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-      #endif
+      if(append == 1)
+      {
+        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+        Serial.println("We made it to append.");
+      }
+      if(append == 2)
+      {
+        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+        Serial.println("We made it to overwrite.");
+      }
     }
   
    delay(1000); //end function after delay, make sure buffer is cleared
@@ -831,7 +865,7 @@ void fabls_power(unsigned int n,double *px,double *py)
 
    textSectionBreak();
 
-      int append = 1;
+ int append = 1;
  int inverted = 0; 
  char entryname[ENTRYNAMEMAX]={0};//entry name holder
  reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
@@ -866,12 +900,16 @@ void fabls_power(unsigned int n,double *px,double *py)
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding 
-      #ifdef EEPROMAppend
-      WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-      #endif
-      #ifndef EEPROMAppend
-      WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-      #endif
+      if(append == 1)
+      {
+        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+        Serial.println("We made it to append.");
+      }
+      if(append == 2)
+      {
+        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+        Serial.println("We made it to overwrite.");
+      }
     }
   
    delay(1000); //end function after delay, make sure buffer is cleared
