@@ -174,12 +174,12 @@ void fabls_linear(unsigned int n,double *px,double *py)
       if(append == 1)
       {
         WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        Serial.println("We made it to append.");
+        //Serial.println("We made it to append.");
       }
       if(append == 2)
       {
         WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        Serial.println("We made it to overwrite.");
+        //Serial.println("We made it to overwrite.");
       }
     }
   
@@ -320,12 +320,12 @@ void fabls_quad(unsigned int n,double *px,double *py)
       if(append == 1)
       {
         WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        Serial.println("We made it to append.");
+        //Serial.println("We made it to append.");
       }
       if(append == 2)
       {
         WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        Serial.println("We made it to overwrite.");
+        //Serial.println("We made it to overwrite.");
       }
     }
   
@@ -520,21 +520,37 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
         }
       }
       //NOTE:  need to set up a case structure to accomodate to 10th order
-      
+
+      Serial.println("We made it up to WriteCalEEPROM");
+
+      int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
+      EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
+      Serial.println (currentoffset, DEC); //print the position as an integer
+      //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
+      EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
+      Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
+      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      //Note: use : as the denote of a new device entry
+      EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
+      Serial.println (currentoffset, DEC); //print the position as an integer
+      EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
+      Serial.println (EEPROMCurrentPosition, DEC);
+      //using field append by adding
 
       Serial.println("We made it past WriteCalEEPROM");
 
       if(append == 1)
       {
-        WriteCalEEPROM(EEPROMCurrentPosition, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition); //Append option: update the header after the last write, write in last EEPROM address location
-        Serial.println("We made it to append.");
+        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+        //Serial.println("We made it to append.");
       }
       if(append == 2)
       {
-        WriteCalEEPROM(offsetInEEPROM, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        Serial.println("We made it to overwrite."); 
+        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+        //Serial.println("We made it to overwrite.");
       }
    }
+   delay(1000); //end function after delay, make sure buffer is cleared
 }
 
 void fabls_exp(unsigned int n,double *px,double *py)
@@ -651,12 +667,12 @@ void fabls_exp(unsigned int n,double *px,double *py)
       if(append == 1)
       {
         WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        Serial.println("We made it to append.");
+        //Serial.println("We made it to append.");
       }
       if(append == 2)
       {
         WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        Serial.println("We made it to overwrite.");
+        //Serial.println("We made it to overwrite.");
       }
     }
   
@@ -774,12 +790,12 @@ void fabls_log(unsigned int n,double *px,double *py)
       if(append == 1)
       {
         WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        Serial.println("We made it to append.");
+        //Serial.println("We made it to append.");
       }
       if(append == 2)
       {
         WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        Serial.println("We made it to overwrite.");
+        //Serial.println("We made it to overwrite.");
       }
     }
   
@@ -903,12 +919,12 @@ void fabls_power(unsigned int n,double *px,double *py)
       if(append == 1)
       {
         WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        Serial.println("We made it to append.");
+        //Serial.println("We made it to append.");
       }
       if(append == 2)
       {
         WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        Serial.println("We made it to overwrite.");
+        //Serial.println("We made it to overwrite.");
       }
     }
   
@@ -1796,7 +1812,7 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
            Serial.print (F("(1)Append OR (2)Overwrite, EEPROM?: "));
            appendedquestion = NumericIntegerInput();
            Serial.println();
-           Serial.print (F("Input Reference Name ( "));  
+           Serial.print (F("Input Reference Name ("));  
            Serial.print (inputaraylength,DEC); //display specified array length for user inputted characters)
            Serial.print (F(" chars max.): "));
            Serial.println();
@@ -1963,7 +1979,7 @@ void loop()
   unsigned int selectedValue = 0; //initialize selection choice holder as 0
   unsigned int runStatus = 0;  // Status of previous function's run, if an error is returned, this will come back as zero, chose next action accordingly 
   displayFitChoiceMenu(); //display menu to user
-  selectedValue = NumericIntegerInput();
+  //NumericIntegerInput();
   Serial.println(); //add in line break after input comes in for selection
   runStatus = fitSelection(NumericIntegerInput(),usecached); //take input from menu selection then process input and fits, skipentry argument in place to see if skip needed
 
