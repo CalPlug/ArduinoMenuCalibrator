@@ -11,7 +11,7 @@
 //General #defines
 #define regressionPrecision 5  //decicmal precision for recorded values saved to EEPROM
 #define reportingPrecision 4  //decicmal precision displayed to the screen
-#define EEPROMDEBUG //enable to view statements printed during EEPROM operations, this may use a lot of memory, be careful!
+//#define EEPROMDEBUG //enable to view statements printed during EEPROM operations, this may use a lot of memory, be careful!
 
 //global holders for entered values
 //warning, this is dynamically allocated, be careful about heap fragmentation!  See: https://arduino.stackexchange.com/questions/3774/how-can-i-declare-an-array-of-variable-size-globally and https://arduino.stackexchange.com/questions/682/is-using-malloc-and-free-a-really-bad-idea-on-arduino and 
@@ -94,15 +94,15 @@ void fabls_linear(unsigned int n,double *px,double *py)
       mask |= '\x01';
       z[0] = s;
       textSectionBreak();
-      Serial.print("Linear:   y = (");
+      Serial.print(F("Linear:   y = ("));
       Serial.print(a2,regressionPrecision);
-      Serial.print(")x ");
+      Serial.print(F(")x "));
       Serial.print((char)sign);
-      Serial.print(" ");
-      Serial.print("(");
+      Serial.print(F(" "));
+      Serial.print(F("("));
       Serial.print(fabs(a1),regressionPrecision);
-      Serial.print(")");
-      Serial.print(" ; s = ");
+      Serial.print(F(")"));
+      Serial.print(F(" ; s = "));
       Serial.println(s,regressionPrecision);
    }
    //end of regression algorithm
@@ -122,7 +122,7 @@ void fabls_linear(unsigned int n,double *px,double *py)
    }
   double averageabsoluteerror = averagecalc(n, averageabsoluteerrorHolder); //calculate absolute error average
   double averagepercenterror = averagecalc(n, averagepercenterrorHolder); //calculate absolute error average
-  Serial.print("Avg Abs Err: ");
+  Serial.print(F("Avg Abs Err: "));
   Serial.println(averageabsoluteerror, regressionPrecision);
   Serial.print(F("Avg % Err: "));
   Serial.println(averagepercenterror,regressionPrecision);
@@ -130,7 +130,7 @@ void fabls_linear(unsigned int n,double *px,double *py)
  double rSquaredReturn;
  determinationCoefficient(n, py, pyregress, 1, rSquaredReturn); // calcuate and print correlation coefficient
 
- Serial.print("r^2 = ");
+ Serial.print(F("r^2 = "));
  Serial.println(rSquaredReturn, reportingPrecision);
  //Serial.print(F("adjusted r^2 = "));  //adjusted r^2 used with mutivariate, not used in this regression type
  //Serial.println(adjRSquaredReturn, reportingPrecision); //adjusted r^2 used with mutivariate, not used in this regression type
@@ -232,19 +232,19 @@ void fabls_quad(unsigned int n,double *px,double *py)
       textSectionBreak();
       mask |= '\x02';
       z[1] = s;
-      Serial.print("Quadratic:   y = (");
+      Serial.print(F("Quadratic:   y = ("));
       Serial.print(a3,regressionPrecision);
-      Serial.print(")x^2 ");
+      Serial.print(F(")x^2 "));
       Serial.print((char)sign2);
-      Serial.print(" (");
+      Serial.print(F(" ("));
       Serial.print(fabs(a2),regressionPrecision);
-      Serial.print(") x ");
+      Serial.print(F(") x "));
       Serial.print((char)sign);
-      Serial.print(" ");
-      Serial.print("(");
+      Serial.print(F(" "));
+      Serial.print(F("("));
       Serial.print(fabs(a1),regressionPrecision);
-      Serial.print(")");
-      Serial.print(" ; s = ");
+      Serial.print(F(")"));
+      Serial.print(F(" ; s = "));
       Serial.println(s,regressionPrecision);
 
    }
@@ -285,7 +285,7 @@ void fabls_quad(unsigned int n,double *px,double *py)
    reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
-    Serial.println(F("Recording values in EERPOM..."));
+    Serial.println(F("Recording values in EEPROM..."));
       int expressionTotalTerms = 3;
       char expressionTerms[4] = {0};
       char constant[EEPROMVariableBufferSize];
@@ -430,15 +430,15 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
     {
       if (i == 0) //supress the initial + sign in the display
          {
-          Serial.print(" ("); 
+          Serial.print(F(" (")); 
          }
       else
          {
-          Serial.print(" + ("); 
+          Serial.print(F(" + (")); 
          }
       Serial.print(a[i],reportingPrecision); //display with 4 decimal places
-      Serial.print(")");
-      Serial.print("x^");
+      Serial.print(F(")"));
+      Serial.print(F("x^"));
       Serial.print(i);
     } 
 
@@ -458,22 +458,22 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
     double error = ((y - py[j])/py[j])*100;
     double absoluteError = y - py[j];
     Serial.print(px[j], reportingPrecision);
-    Serial.print("      ");
+    Serial.print(F("      "));
     Serial.print(py[j], reportingPrecision);
-    Serial.print("      ");
+    Serial.print(F("      "));
     Serial.print(y, reportingPrecision);
-    Serial.print("      ");
+    Serial.print(F("      "));
     Serial.print(absoluteError, reportingPrecision);
-    Serial.print("      ");
+    Serial.print(F("      "));
     Serial.println(error, reportingPrecision);
     pyregress[j] = y;  // save regression value for group calculations
     averagepercenterrorHolder [j] = error; //save into array during calculation
     averageabsoluteerrorHolder[j] = absoluteError;  //save into array during calculation 
    }
    
-   Serial.print("Avg Abs Err: ");
+   Serial.print(F("Avg Abs Err: "));
    Serial.println(averagecalc(N, averageabsoluteerrorHolder), regressionPrecision);
-   Serial.print("Avg % Err: ");
+   Serial.print(F("Avg % Err: "));
    Serial.println(averagecalc(N, averagepercenterrorHolder),regressionPrecision);
    
    double rSquaredReturn = 0.0;
@@ -521,8 +521,6 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
       }
       //NOTE:  need to set up a case structure to accomodate to 10th order
 
-      Serial.println("We made it up to WriteCalEEPROM");
-
       int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
       Serial.println (currentoffset, DEC); //print the position as an integer
@@ -537,17 +535,13 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
       Serial.println (EEPROMCurrentPosition, DEC);
       //using field append by adding
 
-      Serial.println("We made it past WriteCalEEPROM");
-
       if(append == 1)
       {
         WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        //Serial.println("We made it to append.");
       }
       if(append == 2)
       {
         WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        //Serial.println("We made it to overwrite.");
       }
    }
    delay(1000); //end function after delay, make sure buffer is cleared
