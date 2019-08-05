@@ -495,7 +495,7 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
       bool reportedConfiguredStatus = 1;  // updated status for configure
       char invertedStatus[2];
       char configuredStatus[2];
-      char expressionTerms[2];
+      char expressionTerms[10];
       char* term[expressionTotalTerms];
       if(reportInvertedValues == 1)
       {
@@ -544,8 +544,48 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
         WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
       }
    }
-   delay(1000); //end function after delay, make sure buffer is cleared
+   delay(1000);
 }
+
+
+// The following commented-out section of code for writing polynomial regression data to EEPROM is functional but produces an output that doesn't appear to be entirely correct
+
+//if(reportToEEPROM == 1)
+//   {
+//      int expressionTotalTerms = n;
+//      double regressionterms[expressionTotalTerms]; //holder for inverted calculated values
+//      bool reportedConfiguredStatus = 1;  // updated status for configure
+//      char invertedStatus[2];
+//      char configuredStatus[2];
+//      char expressionTerms[2];
+//      char* term[expressionTotalTerms];
+//      if(reportInvertedValues == 1)
+//      {
+//          for (int q=0; q<expressionTotalTerms; q++)
+//          {
+//          regressionterms[q] = (1/(a[q]));
+//          }
+//      }
+//      itoa(reportInvertedValues, invertedStatus, 2);
+//      itoa(reportedConfiguredStatus, configuredStatus, 2);
+//      itoa(expressionTotalTerms, expressionTerms, 2);
+//      
+//      for (int q=0; q<10; q++) //max terms of 10 can be accomodated in the EEPROM
+//      {
+//        if (q<expressionTotalTerms) //if the expression is less than total terms
+//        {
+//          dtostrf(a[q], EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); // fill in available terms
+//        }
+//        else
+//        {
+//          dtostrf(0, EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); //fill in zeros for remaining terms up to the max terms of 10 total in the EEPROM format
+//        }
+//      }
+//      //NOTE:  need to set up a case structure to accomodate to 10th order
+//      WriteCalEEPROM(offsetInEEPROM, "sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);
+//   }
+//   delay(1000); //end function after delay, make sure buffer is cleared
+//}
 
 void fabls_exp(unsigned int n,double *px,double *py)
 {  
@@ -881,7 +921,7 @@ void fabls_power(unsigned int n,double *px,double *py)
  reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
-    Serial.println(F("Recording values in EERPOM..."));
+    Serial.println(F("Recording values in EEPROM..."));
       int expressionTotalTerms = 2;
       char expressionTerms[4] = {0};
       char constant[EEPROMVariableBufferSize];
@@ -963,7 +1003,7 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
   // Quadratic
   else if (fitChoice == 2) 
   {
-    Serial.println("Fit Chose: Quadratic");
+    Serial.println("Fit: Quadratic");
 
     if (skipEntry!=1)
     {
@@ -1146,7 +1186,7 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     delete[] px;
     delete[] py;
     delete[] pyregress;
-    Serial.print("Pts removed from memory, restarting...");  
+    Serial.print("Pts removed, restarting...");  
 
     return 1; // program restarts here
   }
@@ -1194,7 +1234,7 @@ int manualPointEntry (int i) //i is total points entered --needs to have total p
     for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
     //Enter X values
     {
-      Serial.print("Input val - x");
+      Serial.print("Input x-val");
       Serial.print(i+1);
       Serial.print(": ");
       px[i] = (double)NumericFloatInput();
@@ -1203,7 +1243,7 @@ int manualPointEntry (int i) //i is total points entered --needs to have total p
       delay(250); //nice, easy transisitonal delay to next input
       
       //Enter Y values
-      Serial.print("Input val - y");
+      Serial.print("Input y-val");
       Serial.print(i+1);
       Serial.print(": ");
       py[i] = (double)NumericFloatInput();
@@ -1233,7 +1273,7 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
   px = new double[totalPoints]; // Load x's into array
   py = new double[totalPoints]; // Load y's into array
   double readx=0; //holder for the last X value readin
-  Serial.print (("Enter Analog pin (often 0-5): "));
+  Serial.print (("Analog pin (often 0-5): "));
   int pinselection = NumericIntegerInput();
   Serial.println ();
   Serial.print (("(0)Median OR (1)Mean?"));  //can be used to promt for use of median or mean (average) function for calculation
@@ -1245,7 +1285,7 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
 
     for (uint8_t i = 0; i < totalPoints; ++i)       // loop through arrays and fill in values by input
       {
-      Serial.print ("Reading pt: ");
+      //Serial.print ("Reading pt: ");
       Serial.println(i,DEC);
       int entryloopremain = 1;//default to stay in entry loop for the point
       while (entryloopremain == 1)
@@ -1261,7 +1301,7 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
         }
         Serial.print("Measured x-val: ");
         Serial.print(readx,reportingPrecision);
-        Serial.print("   <--keep this value? [Yes(1),Redo(2),Abort(3)]:");
+        Serial.print("   <--keep value? [Yes(1),Redo(2),Abort(3)]:");
         int valuaacceptance = NumericIntegerInput();
         if (valuaacceptance==1)
         {
@@ -1284,7 +1324,7 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
       delay(250); //nice, easy transisitonal delay to next input
       
       //Enter Y values
-      Serial.print("Please enter calibrated y-value");
+      Serial.print("Enter calibrated y-value");
       Serial.print(i+1);
       Serial.print(": ");
       py[i] = (double)NumericFloatInput();
@@ -1360,7 +1400,7 @@ int pointInputProcess ()
     Serial.print(F("Input total pts: "));   // prompt user
     totalPoints = NumericIntegerInput();
     Serial.println(totalPoints);
-    Serial.println(F("NOTE: X's are system values measured (often ADC values in arb. units), Y's are corresponding measurement calibrated values in final units"));
+    Serial.println(F("NOTE: X's=system values measured (often ADC values in arb. units), Y's=corresponding measurement calibrated values in final units"));
     return totalPoints; //return total points value (this may be global, to eventually make a passed value)
 }
 
@@ -1446,8 +1486,8 @@ void determinationCoefficient(const int n, double *y, double *yRegression, const
 void regressionErrorHeader(){
    Serial.print(F("X"));
    Serial.print(F("     Y"));
-   Serial.print(F("         Calculated Y"));
-   Serial.print(F("          Absolute Error"));
+   Serial.print(F("         Calc. Y"));
+   Serial.print(F("          Abs. Error"));
    Serial.println(F("                  PercentError%"));
 }
 
@@ -1483,7 +1523,7 @@ void textSectionBreak(){
 void pointNumberWarnings (unsigned int error){
     if (error==1)
      {
-      Serial.println(F("WARNING - Min pts met, but more pts are recommended."));
+      Serial.println(F("WARNING - Min pts met, but more pts recommended."));
      }
    else if (error==2)
      {
@@ -1527,7 +1567,7 @@ int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries
   Serial.println(EEPROMReadLocation);
   #endif
   delay (10);
-  Serial.println(F("New Header"));
+  //Serial.println(F("New Header"));
   return EEPROMReadLocation; //return last value location in EEPROM
 }
 
@@ -1646,7 +1686,7 @@ int WriteDefaultEEPROM()  //call this to write the default values to "partition"
   
 int WriteCalEEPROM(int eepromoffset, char* towrite_entryvalue_name, char* towrite_type_of_regression, char* expression_terms, char* towrite_inverted, char* towrite_cal_term1, char* towrite_cal_term2, char* towrite_cal_term3, char* towrite_cal_term4, char* towrite_cal_term5, char* towrite_cal_term6, char* towrite_cal_term7, char* towrite_cal_term8, char* towrite_cal_term9, char* towrite_cal_term10, int& EEPROMLocalReadLocation){
   char localdatatowrite[150] = {0};  //EEPROM entry character array holder
-  Serial.println(F("Preparing to save Sensor Data to EEPROM"));
+  //Serial.println(F("Preparing to save Sensor Data to EEPROM"));
   char* sep = "#";
   strcat(localdatatowrite, ":");//Augment a colon to denote a new entry
   strcat(localdatatowrite, towrite_entryvalue_name);
@@ -1730,7 +1770,7 @@ int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* e
   //Read in header values from EEPROM.
   EEPROM.begin(); //NOTE: this takes 0 arguments for AVR, but a value of 512 for ESP32
   delay(20); //allow serial to print before starting EEPROM to avoid line cutoff
-  Serial.println(F("Reading Header in EEPROM"));
+  Serial.println(F("Reading EEPROM header"));
   delay(20);
   int count = 0;
   int address = EEPROMFirstaddress; //start at lowest address
@@ -1739,7 +1779,7 @@ int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* e
   while (count < fields && (address<EEPROMFirstaddress+maxheaderreadaddress)){ //total field number to read in (total number of fields), must match total cases checked
     char read_char = (char)EEPROM.read(address); 
       #ifdef EEPROMOUT
-      Serial.print(F("Last EEPROM Read is: ")); //printout headers
+      Serial.print(F("Last EEPROM Read: ")); //printout headers
       Serial.print(read_char); //printout data
       #endif
     delay(1);
@@ -1786,16 +1826,16 @@ int save_data(int offset, char* datalocal){
     index = i;
   }
   //EEPROM.commit(); //Not required for AVR, only ESP32
-  Serial.print(F("Write Function started, address: "));
-  Serial.println(offset);  // last EEPROM address written  //debug line
-  Serial.print(F("...Complete, total entries for session: ")); //debug line
-  Serial.println(index);  // last EEPROM address written  //debug line
-  return index;  // last EEPROM address written
+//  Serial.print(F("Write Function started, address: "));
+//  Serial.println(offset);  // last EEPROM address written  //debug line
+//  Serial.print(F("...Complete, total entries for session: ")); //debug line
+//  Serial.println(index);  // last EEPROM address written  //debug line
+//  return index;  // last EEPROM address written
   delay(10);
 } //end of save_data function define
 
 int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inputvaluename, unsigned int inputaraylength){
-  Serial.print(F("Save Regression to EEPROM (0=No, 1=Yes): "));
+  Serial.print(F("Save Regression(0=No, 1=Yes): "));
   int selectionValue =  NumericIntegerInput();
   Serial.println();
   int enteredcorrectly = 0;
@@ -1814,10 +1854,10 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
            Serial.print (F("Inputted: "));
            Serial.println (inputvaluename);
            Serial.println();
-           Serial.print (F("Save as recip. values? (0=No, 1=Yes): "));
+           Serial.print (F("Save as recip. values(0=No, 1=Yes): "));
            invertedquestion = NumericIntegerInput();
            Serial.println();
-           Serial.println (F("All Prev values entered correctly, save? (0=Reenter vals, 1=Save, 2=Abort): "));
+           Serial.println (F("Prev values entered correctly, save? (0=Reenter vals, 1=Save, 2=Abort): "));
            enteredcorrectly = NumericIntegerInput();
            if (enteredcorrectly==2) //abort sequence
              {
@@ -1985,7 +2025,7 @@ void loop()
   {
     Serial.println();
     Serial.println();
-    Serial.print(F("Program Comp."));
+    Serial.print(F("Complete"));
   }
   if (dealocArrays ==1)
   {
