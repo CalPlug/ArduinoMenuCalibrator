@@ -5,7 +5,7 @@
 
 
 #include "Arduino.h"
-#include "StatisticalCalibrator.h"
+#include "arduinoregressor.h"
 #include <iostream>
 #include <string>
 
