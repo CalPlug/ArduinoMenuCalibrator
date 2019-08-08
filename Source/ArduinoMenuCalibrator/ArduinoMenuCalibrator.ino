@@ -1218,7 +1218,8 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
 }
 
 //Serial management and direct input read from serial
-void serial_flush(void) {
+void serial_flush(void) 
+{
   //read input buffer flush
   //Serial.print("Pre-Flush Serial Buffer Fill Status: ");  //debug line
   //Serial.println(Serial.available());  //debug line, pre-flush value
@@ -1508,7 +1509,7 @@ void displayFitChoiceMenu()
   Serial.println(F("  (7)List Pts in Memory"));
   Serial.println(F("  (8)Manual Pt Entry"));
   Serial.println(F("  (9)Delete Current Points"));
-  Serial.print(F("  (10)Toggle Enter New Points on fits, current status: "));
+  Serial.print(F("  (10)Toggle Use Cache Points on fits, current status: "));
   Serial.println(usecached,DEC);
   Serial.println("  (0)Exit");
   Serial.print("Option (0-10): ");
