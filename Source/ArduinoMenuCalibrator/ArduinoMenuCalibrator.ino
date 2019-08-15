@@ -112,7 +112,7 @@ void fabls_linear(unsigned int n,double *px,double *py)
    double averageabsoluteerrorHolder[n] = {0}; //initialize holder array with all 0's
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = (a2) * px[i] + (a1);
+      double y = ((a2) * (px[i])) + (a1);
       double absoluteError = y - py[i]; 
       pyregress[i] = y;
       double error = safeDiv((y - py[i]), py[i])*100.0;
@@ -619,12 +619,14 @@ void fabls_exp(unsigned int n,double *px,double *py)
       textSectionBreak();
       mask |= '\x04';
       z[2] = s;
-      Serial.print("Exponential:   y = exp(");
+      Serial.print("Exponential:   y = ");
+      Serial.print(a1, regressionPrecision);
+      Serial.print(" * exp(");
       Serial.print(a2,regressionPrecision);
-      Serial.print("( x ");
-      Serial.print((char)sign);
-      Serial.print(" )");
-      Serial.print(fabs(a1),regressionPrecision);
+      Serial.print(" * x");
+      //Serial.print((char)sign);
+      //Serial.print(" )");
+      //Serial.print(fabs(a1),regressionPrecision);
       Serial.print(") ; s = ");
       Serial.println(s,regressionPrecision);
    }
@@ -635,7 +637,7 @@ void fabls_exp(unsigned int n,double *px,double *py)
    
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = exp((a2) * px[i] + (a1)); //changed to properly calculate y values for exponential equation
+      double y = (a1) * exp((a2) * px[i]); //changed to properly calculate y values for exponential equation
       double absoluteError = y - py[i]; 
 
       pyregress[i] = y;
@@ -1463,19 +1465,19 @@ void determinationCoefficient(const int n, double *y, double *yRegression, const
    
     for (int i = 0; i < n; i++)
     {
-       averageY += y[i];
+       averageY = averageY + y[i];
     }
  
-    averageY /= n;
+    averageY = averageY/(n);
  
     for (int i = 0; i < n; i++)
     {
-        squareDiffSumY += ((y[i] - averageY) * (y[i] - averageY));
+        squareDiffSumY = squareDiffSumY + ((y[i] - averageY) * (y[i] - averageY));
     }
  
     for (int i = 0; i < n; i++)
     {
-        regressDiffSumY += ((yRegression[i] - averageY) * (yRegression[i] - averageY));
+        regressDiffSumY = regressDiffSumY + ((yRegression[i] - averageY) * (yRegression[i] - averageY));
     }
    
     rSquared = (regressDiffSumY / squareDiffSumY);
