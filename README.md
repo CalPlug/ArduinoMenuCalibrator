@@ -5,7 +5,7 @@
 
 ## California Plug Load Research Center (CalPlug) & California Institute of Telecommunications and Information Technology (Calit2)
 
-##### Code development by Bryan Karmini and Avinash Pai
+##### Code development by Mugared Khalifa, Kejia Qiang, Bryan Karmini and Avinash Pai
 ##### University of California, Irvine (UC Irvine) 
 ##### Project Leaders: Dr. Michael J. Klopfer & Prof. G.P. Li 
 Copyright The Regents of the University of California, 2019
