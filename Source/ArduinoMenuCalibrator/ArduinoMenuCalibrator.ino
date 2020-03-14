@@ -1,10 +1,11 @@
 //Arduino Based Multi-form Least-Squares Regression Calibration Utility
+//FIRMWARE DEVELOPERS WINTER 2020: Mugared Khalifa, Kejia Qiang
 //Development by Avinash Pai and Bryan Karimi with component contributions cited.
 //Note: This program uses cited numeric calculation methods developed in part or in whole by other contributers.  The developers of this utility thank these authors for helping us develop this utility!
-//Released under GNU Licence, Copyright (2019) Regents of the University of California 
+//Released under GNU Licence, Copyright (2019) Regents of the University of California
 
 #include <math.h>
-#include <EEPROM.h>                      
+#include <EEPROM.h>
 #include <stdarg.h>
 #include <Arduino.h>
 
@@ -14,7 +15,7 @@
 //#define EEPROMDEBUG //enable to view statements printed during EEPROM operations, this may use a lot of memory, be careful!
 
 //global holders for entered values
-//warning, this is dynamically allocated, be careful about heap fragmentation!  See: https://arduino.stackexchange.com/questions/3774/how-can-i-declare-an-array-of-variable-size-globally and https://arduino.stackexchange.com/questions/682/is-using-malloc-and-free-a-really-bad-idea-on-arduino and 
+//warning, this is dynamically allocated, be careful about heap fragmentation!  See: https://arduino.stackexchange.com/questions/3774/how-can-i-declare-an-array-of-variable-size-globally and https://arduino.stackexchange.com/questions/682/is-using-malloc-and-free-a-really-bad-idea-on-arduino and
 //this is only the declaration (using C++ style), the actual meory allocation has not happened at this point
 double* px;       // dynamic array for x's (DAQ system values)
 double* py;       // dynamic array for y's (calibrated values)
@@ -23,50 +24,70 @@ volatile uint8_t totalPoints = 0;  //declare default case of 0 points, total poi
 
 //EEPROM Configuration Settings
 //Allows the output to be written to the EEPROM in a common format that can be extended on in multiple writes.  An initial flag is used as a quick test for readback to verify if valud values have been already pusghed to the EEPROM.  on the second value set, this write is supressed with the EEPROM offset provided so the values in the EEPROM for all sensors are sequenctial.
-//#define EEPROMOUT //when defined, debug is enabled to read out header info when function is called
+#define EEPROMOUT //when defined, debug is enabled to read out header info when function is called
 //#define DEFAULTTHEEEPROM  //This is normally commented out to turn off by default during normal operation!  When turned on the EEPROM is defaulted at the beginning of the Setup()   Note: turn this on and run once if new chip to put in the field separators in place in the EEPROM to overwite later - consider this a partition step.  Typically run this for a vigin chip
 //#define EEPROMAppend //If selected the EEPROm will append to last entered value, if not defined, the latest value will overwrite and the header in the EEPROM will be adjusted accordingly
 #define reportInvertedValues 0  //  store values in EEPROM as the inverse, often used for very small decimals
-#define EEPROMVariableBufferSize 25 
+#define EEPROMVariableBufferSize 25
 #define EEPROMVariableLength 12
-#define EEPROMDecimalPrecision 8  
+#define EEPROMDecimalPrecision 8
 #define ENTRYNAMEMAX 8 //8 chars max for allowed entryname for data name flag in EEPROM
 int reportToEEPROM = 1; //flag to report to EEPR
 
 //global values for the EEPROM (mirrored cached version, with these being the initialization values)
-char configured_status_cached[2] = {0}; //read-in field values
-char totalentriesread_cached[5] = {0}; //read-in field values
-char eepromoffsetread_cached[6] = {0};  //read-in field values
-char invertedStatus[3] = {0};
-char configuredStatus[3] = {0};
+// char configured_status_cached[2] = "  "; //read-in field values
+// char totalentriesread_cached[5] = "     "; //read-in field values
+// char eepromoffsetread_cached[6] = "      ";  //read-in field values
+// char invertedStatus[3] = "   ";
+// char configuredStatus[3] = "   ";
 bool usecached = 0; //default do not use cached points
 
 int EEPROMCurrentPosition = 0;
 int EEPROMFirstaddress = 0; //define the offset for the first entered EEPROM value
-int maxheaderreadaddress = 10; //numper of positions after which to stop reading the header, this keeps it from reading the whole thing if the EEPROM is not initalized and swamping the console
+int maxheaderreadaddress = 10; //number of positions after which to stop reading the header, this keeps it from reading the whole thing if the EEPROM is not initalized and swamping the console
 int offsetInEEPROM = 10;  // offset address to begin writing in EEPROM for sensor data after the header
 bool reportConfigured = 1; //status for the written configured bit flag, a 1 indicates to the reading that values are valid, any other number flags invalid or not configured values currently in EERPOM, don't bother reading in the rest.
-bool reportedConfiguredStatus = 1;  // updated status for configure, this is the read out value 
-
+bool reportedConfiguredStatus = 1;  // updated status for configure, this is the read out value
+int EEPROMPARTITIONOFFSET = 50;//NOTE: Adjust this to resize partition length
+//TODO: adjust this value^^
 
 void setup() {
- 
+
   Serial.begin(115200);
   //Serial.setTimeout(10000); //set Serial Timeout
   Serial.println(F("Arduino Least Squares Fit Tool v.1.0 | Note: USE Newline or CR/LN in serial terminal program"));
-  
-  //an IFDEF is used to activate the EEPROM defaulter if enabled
-  #ifdef DEFAULTTHEEEPROM
-  WriteDefaultEEPROM(); //run this for a vigin chip
-  #endif 
+
+  // //an IFDEF is used to activate the EEPROM defaulter if enabled
+  // #ifdef DEFAULTTHEEEPROM
+  // WriteDefaultEEPROM(); //run this for a vigin chip
+  // #endif
+  EEPROM.begin();
+  //EEPROM.write(0,0); this line was there to simulate a virgin eeprom
+  //delay(5);
+  for(int i = 0; i<500;i++)
+  {
+    EEPROM.write(i,0);
+    delay(5);
+  }
+
+  if(EEPROM.read(0) != '1')
+  {
+    //If EEPROM not configured, then configure
+    Serial.println("SETTING UP EEPROM IN SETUP()");
+;    setupEEPROM();
+  }
+  //reading first 20 address to make sure
+
+
 }
 
 // Functions for Fit Analysis By Least Squares, multiple methods for different regression types and corresponding output helper functions
 void fabls_linear(unsigned int n,double *px,double *py)
-{  
-  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
+{
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C
    pyregress = new double[totalPoints];
-   byte mask='\x00',sign,sign2;
+   //byte mask='\x00',sign,sign2;
+   char sign,sign2;
    unsigned int i;
    int least=-1;
    double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
@@ -90,8 +111,15 @@ void fabls_linear(unsigned int n,double *px,double *py)
          s += dy * dy;
       }
       s = sqrt(s / r);
-      sign = (a1 < 0) ? '-' : '+';
-      mask |= '\x01';
+      sign = (a1 < 0.0) ? '-' : '+';
+      sign2 = (a2 < 0.0) ? '-' : '+';
+      Serial.println("PRINTING CHAR SIGN IN FABLS_LINEAR");
+      Serial.println(sign);
+      Serial.println("PRINTING CHAR SIGN2 IN FABLS_LINEAR");
+      Serial.println(sign2);
+      Serial.println();
+
+      //mask |= '\x01';
       z[0] = s;
       textSectionBreak();
       Serial.print(F("Linear:   y = ("));
@@ -113,10 +141,10 @@ void fabls_linear(unsigned int n,double *px,double *py)
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = ((a2) * (px[i])) + (a1);
-      double absoluteError = y - py[i]; 
+      double absoluteError = y - py[i];
       pyregress[i] = y;
       double error = safeDiv((y - py[i]), py[i])*100.0;
-      printRegErrors (px[i], py[i], y, absoluteError, error); 
+      printRegErrors (px[i], py[i], y, absoluteError, error);
       averagepercenterrorHolder [i] = error; //save into array during calculation
       averageabsoluteerrorHolder[i] = absoluteError;  //save into array during calculation
    }
@@ -126,7 +154,7 @@ void fabls_linear(unsigned int n,double *px,double *py)
   Serial.println(averageabsoluteerror, regressionPrecision);
   Serial.print(F("Avg % Err: "));
   Serial.println(averagepercenterror,regressionPrecision);
-  
+
  double rSquaredReturn;
  determinationCoefficient(n, py, pyregress, 1, rSquaredReturn); // calcuate and print correlation coefficient
 
@@ -137,66 +165,79 @@ void fabls_linear(unsigned int n,double *px,double *py)
  textSectionBreak();
 
  int append = 1;
- int inverted = 0; 
+ int inverted = 0;
  char entryname[ENTRYNAMEMAX]={0};//entry name holder
  reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
-    Serial.println(F("Recording values in EERPOM..."));
-      int expressionTotalTerms = 2;
-      char expressionTerms[4] = {0};
-      char constant[EEPROMVariableBufferSize];
-      char linear[EEPROMVariableBufferSize];
+    Serial.println(F("Recording values in EERPOM... fabls_linear"));
+      // int expressionTotalTerms = 2;
+      // char expressionTerms[4] = {0};
+      // char constant[EEPROMVariableBufferSize];
+      // char linear[EEPROMVariableBufferSize];
       if(reportInvertedValues == 1)
       {
           a1 = 1.0/(a1);
-          a2 = 1.0/(a2); 
+          a2 = 1.0/(a2);
       }
-      itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
-      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
-      Serial.println();
-      int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
+      Serial.println("PRINTING a2");
+      Serial.println(a2);
+      Serial.println("PRINTING a1");
+      Serial.println(a1);
+      double arrOfConstants [2] = {a2,a1};
+      char arrOfSigns [3] = {(char)sign2,(char)sign};//size is 3 to account for the '\n'
+      writeToEEPROM( entryname, "linear", 2, arrOfConstants, arrOfSigns,  append,  reportInvertedValues);
+    }
+      // itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      // Serial.println();
+      //NOTE: MK; need to find where we can write in the eeprom????
+      //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
-      Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
-      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      //Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
+      //currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","linear", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
       EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
-      //using field append by adding 
-      if(append == 1)
-      {
-        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        //Serial.println("We made it to append.");
-      }
-      if(append == 2)
-      {
-        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        //Serial.println("We made it to overwrite.");
-      }
-    }
-  
+      //using field append by adding
+    //   if(append == 1)
+    //   {
+    //     //WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+    //     //Serial.println("We made it to append.");
+    //     double arrOfConstants [2] = {a2,a1};
+    //     char arrOfSigns [1] = {sign};
+    //     write
+    //   }
+    //   if(append == 2)
+    //   {
+    //     //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+    //     //Serial.println("We made it to overwrite.");
+    //   }
+    // }
+
+
    delay(1000); //end function after delay, make sure buffer is cleared
 }
 
 void fabls_quad(unsigned int n,double *px,double *py)
-{  
-  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
+{
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C
    pyregress = new double[totalPoints];
-   byte mask='\x00',sign,sign2;
+   byte mask='\x00',sign,sign2, sign3;
    unsigned int i;
    int least=-1;
    double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
    double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
    byte *f = "%f %f %f %f %f\n";
-   
+
    s1 = s2 = s3 = s4 = s5 = s6 = s7 = s = 0;
    for (i=0; i<n; i++)
    {  x = px[i];
@@ -229,6 +270,7 @@ void fabls_quad(unsigned int n,double *px,double *py)
       s = sqrt(s / r);
       sign  = (a1 < 0) ? '-' : '+';
       sign2 = (a2 < 0) ? '-' : '+';
+      sign3 = (a3 < 0) ? '-' : '+';
       textSectionBreak();
       mask |= '\x02';
       z[1] = s;
@@ -249,15 +291,15 @@ void fabls_quad(unsigned int n,double *px,double *py)
 
    }
    //end of regression algorithm
-   
+
    regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    double averagepercenterrorHolder[n] = {0}; //initialize holder array with all 0's
    double averageabsoluteerrorHolder[n] = {0}; //initialize holder array with all 0's
-   
+
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = ((a3) * (px[i] * px[i])) + ((a2) * px[i]) + (a1); 
-      double absoluteError = y - py[i]; 
+      double y = ((a3) * (px[i] * px[i])) + ((a2) * px[i]) + (a1);
+      double absoluteError = y - py[i];
       pyregress[i] = y;
       double error = ((y - py[i])/py[i])*100;
       printRegErrors (px[i], py[i], y, absoluteError, error);
@@ -270,22 +312,22 @@ void fabls_quad(unsigned int n,double *px,double *py)
    Serial.println(averageabsoluteerror, regressionPrecision);
    Serial.print(F("Avg % Err: "));
    Serial.println(averagepercenterror,regressionPrecision);
-   
+
    double rSquaredReturn;
- 
+
    determinationCoefficient(n, py, pyregress, 1, rSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
    Serial.println(rSquaredReturn);
    //Serial.print(F("adjusted r^2 = "));
-   //Serial.println(adjRSquaredReturn); 
+   //Serial.println(adjRSquaredReturn);
    textSectionBreak();
    int append = 1;
-   int inverted = 0; 
+   int inverted = 0;
    char entryname[ENTRYNAMEMAX]={0};//entry name holder
    reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
-    Serial.println(F("Recording values in EEPROM..."));
+    Serial.println(F("Recording values in EEPROM... fabls_quad"));
       int expressionTotalTerms = 3;
       char expressionTerms[4] = {0};
       char constant[EEPROMVariableBufferSize];
@@ -294,49 +336,55 @@ void fabls_quad(unsigned int n,double *px,double *py)
       if(reportInvertedValues == 1)
       {
           a1 = 1.0/(a1);
-          a2 = 1.0/(a2); 
+          a2 = 1.0/(a2);
           a3 = 1.0/(a3);
       }
-      itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
-      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
-      dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared);
-      Serial.println();
-      int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
+      double arrOfConstants [3] = {a3,fabs(a2),fabs(a1)};
+      char arrOfSigns [4] = {(char)sign3,(char)sign2,(char)sign};
+      writeToEEPROM( entryname, "quadratic", 3, arrOfConstants, arrOfSigns,  append,  reportInvertedValues);
+      // itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      // dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared);
+      // Serial.println();
+      //TODO: sub line below
+      //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
-      Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
-      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      //Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
+      //currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","quadratic", expressionTerms, invertedStatus, constant, linear, squared, "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
       EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
-      //using field append by adding 
-      if(append == 1)
-      {
-        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        //Serial.println("We made it to append.");
-      }
-      if(append == 2)
-      {
-        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        //Serial.println("We made it to overwrite.");
-      }
+      //using field append by adding
+      // if(append == 1)
+      // {
+      //   //TODO: add new save function here
+      //   //WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+      //   //Serial.println("We made it to append.");
+      // }
+      // if(append == 2)
+      // {
+      //   //TODO: add new save function here
+      //   //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+      //   //Serial.println("We made it to overwrite.");
+      // }
     }
-  
+
    delay(1000); //end function after delay, make sure buffer is cleared
- 
+
 }
 
 void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, double *regCoeff) // Arguments: (Total number of points, order of regression, x-pints, y-pounts)
-{ 
-//The algorithm used in this function is based on the following polynomial regression examples:  https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/ (Manas Sharma, 2015) with elements of https://rosettacode.org/wiki/Polynomial_regression#C/ GSL Library 
-  
+{
+//The algorithm used in this function is based on the following polynomial regression examples:  https://www.bragitoff.com/2015/09/c-program-for-polynomial-fit-least-squares/ (Manas Sharma, 2015) with elements of https://rosettacode.org/wiki/Polynomial_regression#C/ GSL Library
+
     int i,j,k;
     double X[2*n+1];                        //Array that will store the values of sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
     for (i=0;i<2*n+1;i++)
@@ -351,7 +399,7 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
             B[i][j]=X[i+j];            //Build the Normal matrix by storing the corresponding coefficients at the right positions except the last column of the matrix
     double Y[n+1];                    //Array to store the values of sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
     for (i=0;i<n+1;i++)
-    {    
+    {
         Y[i]=0;
         for (j=0;j<N;j++)
         Y[i]=Y[i]+pow(px[j],i)*py[j];        //consecutive positions will store sigma(yi),sigma(xi*yi),sigma(xi^2*yi)...sigma(xi^n*yi)
@@ -359,10 +407,10 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
     for (i=0;i<=n;i++)
         B[i][n+1]=Y[i];                //load the values of Y as the last column of B(Normal Matrix but augmented)
     n=n+1;                //n is made n+1 because the Gaussian Elimination part below was for n equations, but here n is the degree of polynomial and for n degree we get n+1 equations
-    
+
     //printout matrix in function, used for debug
     /*
-    Serial.println(F("\nThe Normal(Augmented Matrix) is as follows:\n"));   //printout calculation matrix 
+    Serial.println(F("\nThe Normal(Augmented Matrix) is as follows:\n"));   //printout calculation matrix
     for (i=0;i<n;i++)            //print the Normal-augmented matrix
     {
         for (j=0;j<=n;j++)
@@ -371,9 +419,9 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
             Serial.print("  ");
         }
             Serial.println();
-    }    
+    }
     */
-    
+
     for (i=0;i<n;i++)                    //From now Gaussian Elimination starts(can be ignored) to solve the set of linear equations (Pivotisation)
         for (k=i+1;k<n;k++)
             if (B[i][i]<B[k][i])
@@ -383,7 +431,7 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
                     B[i][j]=B[k][j];
                     B[k][j]=temp;
                 }
-    
+
     for (i=0;i<n-1;i++)            //loop to perform the gauss elimination
         for (k=i+1;k<n;k++)
             {
@@ -399,13 +447,13 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
                 a[i]=a[i]-B[i][j]*a[j];
         a[i]=a[i]/B[i][i];            //now finally divide the rhs by the coefficient of the variable to be calculated
     }
-    
+
     //printout coefs. in function, used for debug
-    /*Serial.println(F("\nThe values of the coefficients are as follows:\n"));  
+    /*Serial.println(F("\nThe values of the coefficients are as follows:\n"));
     for (i=0;i<n;i++)
     {
-        // Print the values of x^0,x^1,x^2,x^3,....    
-        Serial.print("x^"); 
+        // Print the values of x^0,x^1,x^2,x^3,....
+        Serial.print("x^");
         Serial.print(i, reportingPrecision); //display with 4 decimal places
         Serial.print("=");
         Serial.println(a[i]); //end of line statement
@@ -420,41 +468,45 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
 
 void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, double *py)
 {
+  byte mask='\x00',sign;//why is it a byte mask? god knows //MK
    pyregress = new double[N];  // define holder for calculated regression values for all points
    double averagepercenterrorHolder[N] = {0}; //initialize holder with 0's
    double averageabsoluteerrorHolder[N] = {0}; //initialize holder with 0's
    Serial.print(F("The fitted (order "));
    Serial.print(n);
    Serial.print(F(") Polynomial is given by:\n y ="));
+   char arrOfSigns[N+2];//number of terms of a polynomial of order N is N+1
    for (int i = 0; i < (n + 1); i++) // total points is equal to n+1
     {
       if (i == 0) //supress the initial + sign in the display
          {
-          Serial.print(F(" (")); 
+          Serial.print(F(" ("));
          }
       else
          {
-          Serial.print(F(" + (")); 
+          Serial.print(F(" + ("));
          }
       Serial.print(a[i],reportingPrecision); //display with 4 decimal places
+      sign  = (a[i] < 0) ? '-' : '+';
+      arrOfSigns[i] = (char)sign;
       Serial.print(F(")"));
       Serial.print(F("x^"));
       Serial.print(i);
-    } 
+    }
 
    Serial.println();  //Break between segments
 
    //calculation and display of fitting errors, conceptually we are showing residual error. See this discussion for more info:  https://www.mathworks.com/help/curvefit/residual-analysis.html
    regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
-   
+
    for (int j = 0; j < N; ++j) //for all points
    {
     double y = 0; //set each term's calculation initialized at 0
     for (int q = 0; q < (n + 1); q++)  //for all terms
-      { 
-        y = y + a[q]*pow((float)px[j], (float)q);  // y has ((some constant) * (x to a power)) being added to it repeatedly through the for loop 
+      {
+        y = y + a[q]*pow((float)px[j], (float)q);  // y has ((some constant) * (x to a power)) being added to it repeatedly through the for loop
       }
-      
+
     double error = ((y - py[j])/py[j])*100;
     double absoluteError = y - py[j];
     Serial.print(px[j], reportingPrecision);
@@ -468,14 +520,14 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
     Serial.println(error, reportingPrecision);
     pyregress[j] = y;  // save regression value for group calculations
     averagepercenterrorHolder [j] = error; //save into array during calculation
-    averageabsoluteerrorHolder[j] = absoluteError;  //save into array during calculation 
+    averageabsoluteerrorHolder[j] = absoluteError;  //save into array during calculation
    }
-   
+
    Serial.print(F("Avg Abs Err: "));
    Serial.println(averagecalc(N, averageabsoluteerrorHolder), regressionPrecision);
    Serial.print(F("Avg % Err: "));
    Serial.println(averagecalc(N, averagepercenterrorHolder),regressionPrecision);
-   
+
    double rSquaredReturn = 0.0;
    determinationCoefficient(N, py, pyregress, 1, rSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
@@ -485,9 +537,9 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
 
    textSectionBreak();
    int append = 1;
-   int inverted = 0; 
+   int inverted = 0;
    char entryname[ENTRYNAMEMAX]={0};//entry name holder
-   reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status 
+   reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
       int expressionTotalTerms = (N + 1);
@@ -504,45 +556,53 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
           regressionterms[q] = (1/(a[q]));
           }
       }
-      itoa(reportInvertedValues, invertedStatus, 10);
-      itoa(reportedConfiguredStatus, configuredStatus, 10);
-      itoa(expressionTotalTerms, expressionTerms, 10);
-      
-      for (int q=0; q<10; q++) //max terms of 10 can be accomodated in the EEPROM
+      if(reportInvertedValues == 1)
       {
-        if (q<expressionTotalTerms) //if the expression is less than total terms
-        {
-          dtostrf(a[q], EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); // fill in available terms
-        }
-        else
-        {
-          dtostrf(0, EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); //fill in zeros for remaining terms up to the max terms of 10 total in the EEPROM format
-        }
+        writeToEEPROM( entryname, "quadratic", N+1, regressionterms, arrOfSigns,  append,  reportInvertedValues);
       }
-      //NOTE:  need to set up a case structure to accomodate to 10th order
+      else
+      {
+        writeToEEPROM( entryname, "quadratic", N+1, a, arrOfSigns,  append,  reportInvertedValues);
 
-      int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
+      }
+      // itoa(reportInvertedValues, invertedStatus, 10);
+      // itoa(reportedConfiguredStatus, configuredStatus, 10);
+      // itoa(expressionTotalTerms, expressionTerms, 10);
+
+      // for (int q=0; q<10; q++) //max terms of 10 can be accomodated in the EEPROM
+      // {
+      //   if (q<expressionTotalTerms) //if the expression is less than total terms
+      //   {
+      //     dtostrf(a[q], EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); // fill in available terms
+      //   }
+      //   else
+      //   {
+      //     dtostrf(0, EEPROMVariableLength, EEPROMDecimalPrecision, term[q]); //fill in zeros for remaining terms up to the max terms of 10 total in the EEPROM format
+      //   }
+      // }
+      //NOTE:  need to set up a case structure to accomodate to 10th order
+      //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
-      Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
-      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      //Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
+      //currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1", "polynomial", expressionTerms, invertedStatus, term[1], term[2], term[3], term[4], term[5], term[6], term[7], term[8], term[9], term[10], EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
       EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
-      //using field append by adding
-
-      if(append == 1)
-      {
-        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-      }
-      if(append == 2)
-      {
-        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-      }
+      // //using field append by adding
+      //
+      // if(append == 1)
+      // {
+      //   //WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+      // }
+      // if(append == 2)
+      // {
+      //   //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+      // }
    }
    delay(1000);
 }
@@ -569,7 +629,7 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
 //      itoa(reportInvertedValues, invertedStatus, 2);
 //      itoa(reportedConfiguredStatus, configuredStatus, 2);
 //      itoa(expressionTotalTerms, expressionTerms, 2);
-//      
+//
 //      for (int q=0; q<10; q++) //max terms of 10 can be accomodated in the EEPROM
 //      {
 //        if (q<expressionTotalTerms) //if the expression is less than total terms
@@ -588,8 +648,8 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
 //}
 
 void fabls_exp(unsigned int n,double *px,double *py)
-{  
-  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
+{
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -597,11 +657,11 @@ void fabls_exp(unsigned int n,double *px,double *py)
    double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
    double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
    byte *f = "%f %f %f %f %f\n";
-   
+
    s1 = s2 = s3 = s4 = s = 0;
    for (i=0; i<n; i++)
    {  x = px[i];
-      y = alog(py[i]);
+      y = log(py[i]);
       s1 += x;
       s2 += x * x;
       s3 += y;
@@ -611,7 +671,7 @@ void fabls_exp(unsigned int n,double *px,double *py)
    {  a1 = (s3 * s2 - s1 * s4) / denom;
       a2 = (n  * s4 - s3 * s1) / denom;
       for (i=0; i<n; i++)
-      {  dy = alog(py[i]) - (a2 * px[i] + a1);
+      {  dy = log(py[i]) - (a2 * px[i] + a1);
          s += dy * dy;
       }
       s = sqrt(s / r);
@@ -619,6 +679,7 @@ void fabls_exp(unsigned int n,double *px,double *py)
       textSectionBreak();
       mask |= '\x04';
       z[2] = s;
+      a1 = exp(a1);
       Serial.print("Exponential:   y = ");
       Serial.print(a1, regressionPrecision);
       Serial.print(" * exp(");
@@ -633,19 +694,19 @@ void fabls_exp(unsigned int n,double *px,double *py)
   //end of regression algorithm
    regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    double averagepercenterrorHolder[n] = {0}; //initialize holder array with all 0's; added this for exponential regression
-   double averageabsoluteerrorHolder[n] = {0}; //initialize holder array with all 0's; added this for exponential regression 
-   
+   double averageabsoluteerrorHolder[n] = {0}; //initialize holder array with all 0's; added this for exponential regression
+
    for (unsigned int i = 0; i < n; ++i)
    {
       double y = (a1) * exp((a2) * px[i]); //changed to properly calculate y values for exponential equation
-      double absoluteError = y - py[i]; 
+      double absoluteError = y - py[i];
 
       pyregress[i] = y;
-      
+
       double error = safeDiv((y - py[i]), py[i])*100.0;
-      
+
       printRegErrors (px[i], py[i], y, absoluteError, error);
-      
+
       averagepercenterrorHolder [i] = error; //save into array during calculation
       averageabsoluteerrorHolder[i] = absoluteError;  //save into array during calculation
    }
@@ -655,7 +716,7 @@ void fabls_exp(unsigned int n,double *px,double *py)
   Serial.println(averageabsoluteerror, regressionPrecision);
   Serial.print(F("Avg % Err: "));
   Serial.println(averagepercenterror,regressionPrecision);
-  
+
  double rSquaredReturn;
  determinationCoefficient(n, py, pyregress, 1, rSquaredReturn); // calcuate and print correlation coefficient
 
@@ -666,58 +727,61 @@ void fabls_exp(unsigned int n,double *px,double *py)
  textSectionBreak();
 
  int append = 1;
- int inverted = 0; 
+ int inverted = 0;
  char entryname[ENTRYNAMEMAX]={0};//entry name holder
  reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
-      Serial.println(F("Recording values in EERPOM..."));
-      int expressionTotalTerms = 2;
-      char expressionTerms[4] = {0};
-      char constant[EEPROMVariableBufferSize];
-      char linear[EEPROMVariableBufferSize];
+      Serial.println(F("Recording values in EERPOM... fabls_exp"));
+      // int expressionTotalTerms = 2;
+      // char expressionTerms[4] = {0};
+      // char constant[EEPROMVariableBufferSize];
+      // char linear[EEPROMVariableBufferSize];
       if(reportInvertedValues == 1)
       {
           a1 = 1.0/(a1);
-          a2 = 1.0/(a2); 
+          a2 = 1.0/(a2);
       }
-      itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
-      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      // itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      double arrOfConstants [2] = {a1,a2};
+      char arrOfSigns[3]  = {(char)sign,(char)sign2};
+      writeToEEPROM( entryname, "exponential", 2, arrOfConstants, arrOfSigns,  append,  reportInvertedValues);
       Serial.println();
-      int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
+      //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
-      Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
-      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","exponential", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      //Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
+      //currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","exponential", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
       EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
-      //using field append by adding 
-      if(append == 1)
-      {
-        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        //Serial.println("We made it to append.");
-      }
-      if(append == 2)
-      {
-        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        //Serial.println("We made it to overwrite.");
-      }
+      //using field append by adding
+      // if(append == 1)
+      // {
+      //   //WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+      //   //Serial.println("We made it to append.");
+      // }
+      // if(append == 2)
+      // {
+      //   //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+      //   //Serial.println("We made it to overwrite.");
+      // }
     }
-  
+
    delay(1000); //end function after delay, make sure buffer is cleared
 }
 
 void fabls_log(unsigned int n,double *px,double *py)
-{  
-  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
+{
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -725,7 +789,7 @@ void fabls_log(unsigned int n,double *px,double *py)
    double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
    double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
    byte *f = "%f %f %f %f %f\n";
-   
+
    s1 = s2 = s3 = s4 = s = 0;
    for (i=0; i<n; i++)
    {  x = alog(px[i]);
@@ -745,6 +809,7 @@ void fabls_log(unsigned int n,double *px,double *py)
       }
       s = sqrt(s / r);
       sign = (a1 < 0) ? '-' : '+';
+      sign2 = (a2 < 0) ? '-' : '+';
       textSectionBreak();
       //ardprintf("Logarithmic:   y = (%f) ln(x) %c %f; s = %f\n",a2,sign,fabs(a1),s);
       mask |= '\x08';
@@ -765,11 +830,11 @@ void fabls_log(unsigned int n,double *px,double *py)
    regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = (a2) * log(px[i]) + (a1); //change this 
+      double y = (a2) * log(px[i]) + (a1); //change this
       double absoluteError = y - py[i];
-      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100
       pyregress[i] = y;
-      
+
       double error = safeDiv((y - py[i]),py[i])*100.0;
       printRegErrors (px[i], py[i], y, absoluteError, error);
       averagepercenterrorHolder [i] = error; //save into array during calculation
@@ -789,58 +854,61 @@ void fabls_log(unsigned int n,double *px,double *py)
    //Serial.println(adjRSquaredReturn); //  not used for this regression type and circumstance
    textSectionBreak();
    int append = 1;
- int inverted = 0; 
+ int inverted = 0;
  char entryname[ENTRYNAMEMAX]={0};//entry name holder
  reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
-    Serial.println(F("Recording values in EERPOM..."));
-      int expressionTotalTerms = 2;
-      char expressionTerms[4] = {0};
-      char constant[EEPROMVariableBufferSize];
-      char linear[EEPROMVariableBufferSize];
+    Serial.println(F("Recording values in EEPROM... fabls_log"));
+      // int expressionTotalTerms = 2;
+      // char expressionTerms[4] = {0};
+      // char constant[EEPROMVariableBufferSize];
+      // char linear[EEPROMVariableBufferSize];
       if(reportInvertedValues == 1)
       {
           a1 = 1.0/(a1);
-          a2 = 1.0/(a2); 
+          a2 = 1.0/(a2);
       }
-      itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
-      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      double arrOfConstants [2] = {a2,fabs(a1)};//saving them the same way they are printing out
+      char arrOfSigns[3]  = {(char)sign2,(char)sign };
+      writeToEEPROM( entryname, "logarithmic", 2, arrOfConstants, arrOfSigns,  append,  reportInvertedValues);
+      // itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       Serial.println();
-      int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
+      //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
-      Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
-      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","logarithmic", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      //Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
+      //currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","logarithmic", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
       EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
-      //using field append by adding 
-      if(append == 1)
-      {
-        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        //Serial.println("We made it to append.");
-      }
-      if(append == 2)
-      {
-        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        //Serial.println("We made it to overwrite.");
-      }
+      //using field append by adding
+      // if(append == 1)
+      // {
+      //   //WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+      //   //Serial.println("We made it to append.");
+      // }
+      // if(append == 2)
+      // {
+      //   //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+      //   //Serial.println("We made it to overwrite.");
+      // }
     }
-  
+
    delay(1000); //end function after delay, make sure buffer is cleared
 }
 
 void fabls_power(unsigned int n,double *px,double *py)
-{  
-  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C 
+{
+  //Algorithm used based on:  https://forum.arduino.cc/index.php?topic=96292.0, general fitting examples, fortran and C
    pyregress = new double[totalPoints];
    byte mask='\x00',sign,sign2;
    unsigned int i;
@@ -848,7 +916,7 @@ void fabls_power(unsigned int n,double *px,double *py)
    double beta,d2,denom,dy,p,percent_error,r=(n-1),x,y,yc;
    double a1,a2,a3,s,s1,s2,s3,s4,s5,s6,s7,z[5];
    byte *f = "%f %f %f %f %f\n";
-  
+
    s1 = s2 = s3 = s4 = s = 0;
    for (i=0; i<n; i++)
    {  x = alog(px[i]);
@@ -890,24 +958,24 @@ void fabls_power(unsigned int n,double *px,double *py)
    {
       double y = (a2) * px[i] + (a1);
       double absoluteError = y - py[i];
-      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100 
+      // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100
 
       pyregress[i] = y;
-     
+
       double error = safeDiv((y - py[i]),py[i])*100.0;
       printRegErrors (px[i], py[i], y, absoluteError, error);
 
       averagepercenterrorHolder [i] = error; //save into array during calculation
       averageabsoluteerrorHolder[i] = absoluteError;  //save into array during calculation
    }
-   
+
    double averageabsoluteerror = averagecalc(n, averageabsoluteerrorHolder); //calculate absolute error average
    double averagepercenterror = averagecalc(n, averagepercenterrorHolder); //calculate absolute error average
    Serial.print(F("Avg Abs Err: "));
    Serial.println(averageabsoluteerror, regressionPrecision);
    Serial.print(F("Avg % Err: "));
    Serial.println(averagepercenterror,regressionPrecision);
-   
+
    double rSquaredReturn;
    determinationCoefficient(n, py, pyregress, 1, rSquaredReturn); // calcuate and print correlation coefficient
    Serial.print(F("r^2 = "));
@@ -918,52 +986,55 @@ void fabls_power(unsigned int n,double *px,double *py)
    textSectionBreak();
 
  int append = 1;
- int inverted = 0; 
+ int inverted = 0;
  char entryname[ENTRYNAMEMAX]={0};//entry name holder
  reportToEEPROM = saveToEEPROMPrompt(append, inverted, entryname, ENTRYNAMEMAX); //reference return append status
    if(reportToEEPROM == 1)
    {
-    Serial.println(F("Recording values in EEPROM..."));
-      int expressionTotalTerms = 2;
-      char expressionTerms[4] = {0};
-      char constant[EEPROMVariableBufferSize];
-      char linear[EEPROMVariableBufferSize];
+    Serial.println(F("Recording values in EEPROM... fabls_power"));
+      // int expressionTotalTerms = 2;
+      // char expressionTerms[4] = {0};
+      // char constant[EEPROMVariableBufferSize];
+      // char linear[EEPROMVariableBufferSize];
       if(reportInvertedValues == 1)
       {
           a1 = 1.0/(a1);
-          a2 = 1.0/(a2); 
+          a2 = 1.0/(a2);
       }
-      itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
-      dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
-      dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
-      Serial.println();
-      int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
+      double arrOfConstants [2] = {fabs(a1),a2};//saving them the same way they are printing out
+      char arrOfSigns[2]  = {(char)sign2,(char)sign};
+      writeToEEPROM( entryname, "power", 2, arrOfConstants, arrOfSigns,  append,  reportInvertedValues);
+      // itoa(reportInvertedValues, invertedStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(reportedConfiguredStatus, configuredStatus, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
+      // dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
+      // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
+      // Serial.println();
+      //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       //need to convert read offset to an int to feed into the next position to write the next EEPROM entry
       EEPROMStatusMessages(2); //EEPROM readout message (redundant text pulled from function)
-      Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
-      currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","power", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
+      //Serial.println ((offsetInEEPROM + currentoffset + 1), DEC);
+      //currentoffset = WriteCalEEPROM((offsetInEEPROM + currentoffset + 1),"sensor1","power", expressionTerms, invertedStatus, constant, linear, "0", "0", "0", "0", "0", "0", "0", "0", EEPROMCurrentPosition);  // values to write into EEPROM, variables unused up to 10 are reported as "0"
       //Note: use : as the denote of a new device entry
       EEPROMStatusMessages(3); //EEPROM readout message (redundant text pulled from function)
-      Serial.println (currentoffset, DEC); //print the position as an integer
+      //Serial.println (currentoffset, DEC); //print the position as an integer
       EEPROMStatusMessages(5); //EEPROM readout message (redundant text pulled from function)
       Serial.println (EEPROMCurrentPosition, DEC);
-      //using field append by adding 
-      if(append == 1)
-      {
-        WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
-        //Serial.println("We made it to append.");
-      }
-      if(append == 2)
-      {
-        WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
-        //Serial.println("We made it to overwrite.");
-      }
+      //using field append by adding
+      // if(append == 1)
+      // {
+      //   //WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
+      //   //Serial.println("We made it to append.");
+      // }
+      // if(append == 2)
+      // {
+      //   //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
+      //   //Serial.println("We made it to overwrite.");
+      // }
     }
-  
+
    delay(1000); //end function after delay, make sure buffer is cleared
 }
 
@@ -974,19 +1045,19 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
       return 0;  // selection was not a valid fit choice. Return with no action
   }
   // Linear
-  if(fitChoice == 1) 
-  { 
+  if(fitChoice == 1)
+  {
     Serial.println(F("Fit: Linear"));
     if (skipEntry!=1)
     {
-    pointInputProcess (); 
+    pointInputProcess ();
     }
     // Error and warning checks for minimum points
     if (totalPoints < 2)
     {
         pointNumberWarnings(2);
         delay(500);
-        return 0;  // failed; returning to previous function 
+        return 0;  // failed; returning to previous function
     }
     else if (totalPoints == 2)
     {
@@ -998,30 +1069,30 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     {
     dataEntrySelection(totalPoints);// select point entry method
     }
-    fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator  
+    fabls_linear(totalPoints, px, py); // send inputed points to fabls calculator
 
     return 1; // successfully ran linear fitting
   }
   // Quadratic
-  else if (fitChoice == 2) 
+  else if (fitChoice == 2)
   {
     Serial.println("Fit: Quadratic");
 
     if (skipEntry!=1)
     {
-    pointInputProcess (); 
+    pointInputProcess ();
     }
 
     if (totalPoints < 3)
     {
         pointNumberWarnings(2);
         delay(500);
-        return 0;  // failed; returning to previous function 
+        return 0;  // failed; returning to previous function
     }
     else if (totalPoints == 3)
     {
        pointNumberWarnings(1);
-      
+
     }
     delay(500);
         if (skipEntry!=1)
@@ -1034,23 +1105,23 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     return 1;  //successfully ran
   }
   // Exponential
-  else if (fitChoice == 3) 
+  else if (fitChoice == 3)
   {
     Serial.println("Fit: Exponential");
   if (skipEntry!=1)
     {
-    pointInputProcess (); 
+    pointInputProcess ();
     }
     // Error and warning checks for minimum points
     if (totalPoints < 3)
     {
         pointNumberWarnings(2);
         delay(500);
-        return 0;  // failed; returning to previous function 
+        return 0;  // failed; returning to previous function
     }
     else if (totalPoints == 3)
     {
-       pointNumberWarnings(1);    
+       pointNumberWarnings(1);
     }
     delay(500);
     //manualPointEntry(totalPoints);
@@ -1063,22 +1134,22 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     return 1;  //successfully ran
   }
   // Logarithmic
-  else if (fitChoice == 4) 
+  else if (fitChoice == 4)
   {
     Serial.println("Fit: Logarithmic");
 
-   pointInputProcess (); 
+   pointInputProcess ();
 
     if (totalPoints < 3)
     {
         pointNumberWarnings (2);
         delay(500);
-        return 0;  // failed; returning to previous function 
+        return 0;  // failed; returning to previous function
     }
     else if (totalPoints == 3)
     {
        pointNumberWarnings (1);
-      
+
     }
     delay(500);
         if (skipEntry!=1)
@@ -1088,30 +1159,30 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     //manualPointEntry(totalPoints);
     fabls_log(totalPoints, px, py); //calculate logarithmic regressions
 
-    return 1; // successfully ran 
+    return 1; // successfully ran
   }
   // Power
-  else if (fitChoice == 5) 
+  else if (fitChoice == 5)
   {
     Serial.println("Fit: Power");
     if (skipEntry!=1)
     {
-    pointInputProcess (); 
+    pointInputProcess ();
     }
-    
+
     if (totalPoints < 3)
     {
         pointNumberWarnings(2);
         delay(500);
-        return 0;  // failed; returning to previous function 
+        return 0;  // failed; returning to previous function
     }
     else if (totalPoints == 3)
     {
        pointNumberWarnings(1);
-      
+
     }
     delay(500);
-    
+
         if (skipEntry!=1)
     {
     dataEntrySelection(totalPoints);// select point entry method
@@ -1124,26 +1195,26 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
   else if (fitChoice == 6)
   {
     Serial.println("Fit: Polynomial");
-    
+
     Serial.print(F("Polynomial Degree: "));   // prompt user
     int polynomialDegree = NumericIntegerInput();
     Serial.println(polynomialDegree);
 
     if (skipEntry!=1)
     {
-    pointInputProcess (); 
+    pointInputProcess ();
     }
-    
+
     if (totalPoints < (polynomialDegree + 1))
     {
         pointNumberWarnings(2);
         delay(500);
-        return 0;   // failed; returning to previous function 
+        return 0;   // failed; returning to previous function
     }
     else if (totalPoints == (polynomialDegree + 1))
     {
        pointNumberWarnings(1);
-      
+
     }
     delay(500);
 
@@ -1158,7 +1229,7 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     return 1; // successfully ran
   }
 
-  else if (fitChoice == 7) 
+  else if (fitChoice == 7)
   {
     Serial.println("Displaying Pts: ");
 
@@ -1166,11 +1237,11 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     {
       listPoints(totalPoints, px, py);
     }
-    else 
+    else
     {
       Serial.println(F("ERR: No pts entered..."));
     }
-    
+
     return 1; // successfully ran
   }
 
@@ -1181,18 +1252,18 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     return 1; // successfully ran
   }
 
-  else if (fitChoice == 9) 
+  else if (fitChoice == 9)
   {
     totalPoints = 0; // 0 this off when other values are erased
     //reset pointer allocation
     delete[] px;
     delete[] py;
     delete[] pyregress;
-    Serial.print("Pts removed, restarting...");  
+    Serial.print("Pts removed, restarting...");
 
     return 1; // program restarts here
   }
-    else if (fitChoice == 10) 
+    else if (fitChoice == 10)
   {
     if (usecached == 0)
     {
@@ -1209,7 +1280,7 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     return 1; // program restarts here
   }
   // Invalid
-  else 
+  else
   {
     Serial.println(F("Invalid sel. Res. calibration..."));
     delay(500);
@@ -1220,7 +1291,7 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
 }
 
 //Serial management and direct input read from serial
-void serial_flush(void) 
+void serial_flush(void)
 {
   //read input buffer flush
   //Serial.print("Pre-Flush Serial Buffer Fill Status: ");  //debug line
@@ -1244,7 +1315,7 @@ int manualPointEntry (int i) //i is total points entered --needs to have total p
       Serial.print(" Entered Val: ");
       Serial.println(px[i]);
       delay(250); //nice, easy transisitonal delay to next input
-      
+
       //Enter Y values
       Serial.print("Input y-val");
       Serial.print(i+1);
@@ -1257,20 +1328,22 @@ int manualPointEntry (int i) //i is total points entered --needs to have total p
 }
 int dataEntrySelection (int pointssel) //selects the point entry method requested
 {
-  
+
   Serial.print (F("(1)Analog Read OR (2)Manual point entry?:"));
   int modeselection = NumericIntegerInput();
   Serial.println();
   if (modeselection == 1)
   {
-    
-    return (AnalogReadPointEntry (pointssel));  
+
+    //return (AnalogReadPointEntry (pointssel));
+    Serial.println("CALL TO ANALOG READ BUT IT HAS BEEN COMMENETD OUT FOR TESTING");
   }
   else if (modeselection == 2)
   {
     return(manualPointEntry(pointssel));
   }
 }
+
 int AnalogReadPointEntry (int totalpointstosample) //i is total points entered --needs to have total points and px,py passed as areguements versus global modification
 {
   px = new double[totalPoints]; // Load x's into array
@@ -1322,10 +1395,10 @@ int AnalogReadPointEntry (int totalpointstosample) //i is total points entered -
           return 0; //return 0 indicating failed function completion
         }
         }
-      
+
       Serial.println(px[i]);
       delay(250); //nice, easy transisitonal delay to next input
-      
+
       //Enter Y values
       Serial.print("Enter calibrated y-value");
       Serial.print(i+1);
@@ -1347,7 +1420,7 @@ int NumericIntegerInput()
     //wait for user serial input
   }
   delay(250); //delay to allow buffered input to build up in this approach during serial transmission
-  
+
   long SelectionfitChoice = Serial.parseInt(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
   serial_flush(); //flush Serial buffer to prepare for next input
   return ((int)SelectionfitChoice);
@@ -1364,7 +1437,7 @@ void CharArrayInput(char*inputarray, unsigned int maxchars)//maxchars is total e
   delay(20); //delay to allow buffered input to build up in this approach during serial transmission
   unsigned int count=0;
   bool breakloop=0;
-  while ((breakloop==0) && (count<maxchars)) 
+  while ((breakloop==0) && (count<maxchars))
   {
     readvalue = Serial.read(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
     if ((readvalue == 10) || (readvalue == 13))//newline or CR seen
@@ -1392,13 +1465,13 @@ float NumericFloatInput()
     //wait for user serial input
   }
   delay(250); //delay to allow buffered input to build up in this approach during serial transmission
-  
+
   float valueInput = Serial.parseFloat(); //NOTE: NEWLINE must be enabled so that the the escape character is available!!
   serial_flush(); //flush Serial buffer to prepare for next input
   return (valueInput);
 }
 
-int pointInputProcess () 
+int pointInputProcess ()
 { //this repetitious input process is executed as a function to save memory.
     Serial.print(F("Input total pts: "));   // prompt user
     totalPoints = NumericIntegerInput();
@@ -1425,7 +1498,7 @@ double ipow(double base, int exponent) //simplified calculation of power for an 
 }
 
 double alog(double x)
-{  
+{
   return (x < 0) ? -log(-x) : ((x > 0) ? log(x) : 0);
 }
 
@@ -1445,8 +1518,8 @@ double safeDiv(double numerator, double denominator)
 double averagecalc(int len, double* values)
 {
    double total = 0; //Initialize the total accumulator
-   
-   for(int index = 0; index < len; index++) 
+
+   for(int index = 0; index < len; index++)
    {
       total = total + values[index]; //add in each value in array
    }
@@ -1462,26 +1535,26 @@ void determinationCoefficient(const int n, double *y, double *yRegression, const
     double squareDiffSumY = 0.0;
     double regressDifferenceY = 0.0;
     double regressDiffSumY = 0.0;
-   
+
     for (int i = 0; i < n; i++)
     {
        averageY = averageY + y[i];
     }
- 
+
     averageY = averageY/(n);
- 
+
     for (int i = 0; i < n; i++)
     {
         squareDiffSumY = squareDiffSumY + ((y[i] - averageY) * (y[i] - averageY));
     }
- 
+
     for (int i = 0; i < n; i++)
     {
         regressDiffSumY = regressDiffSumY + ((yRegression[i] - averageY) * (yRegression[i] - averageY));
     }
-   
+
     rSquared = (regressDiffSumY / squareDiffSumY);
-    //adjustedRSquared = 1.0-(((1.0-(rSquared))*(((double)n-1.0))/((double)n-((double)regressors+1.0))));  
+    //adjustedRSquared = 1.0-(((1.0-(rSquared))*(((double)n-1.0))/((double)n-((double)regressors+1.0))));
 }
 
 
@@ -1536,304 +1609,590 @@ void pointNumberWarnings (unsigned int error){
      {} //noting said if not a selected error from list
 }
 
-//EEPROM Handler Functions
+/////////////////////////////////////////////////////////////////////////////////////////////
 
-int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries)
-{  //function in development to take care of writing the first part of the EEPROM.
-  #ifdef EEPROMDEBUG
-  Serial.println("Prep. EEPROM Header");
-  #endif
-  char datatowrite[150] = {0};  //EEPROM entry character array holder
-  char totalentries[4] = {0}; //holder
-  char totalOffset[5] = {0}; //holder
-  itoa(entries, totalentries, 10);  //convert the int into an entry in the char* array for the total entries in the eeprom
-  itoa(eepromoffset, totalOffset, 10);  //convert the int into an entry in the char* array for the total entries in the eeprom
 
-  char* sep = "#";
-  //prepare EEPROM header
-  strcat(datatowrite, towrite_configured);
-  strcat(datatowrite, sep);
-  strcat(datatowrite, totalentries);
-  strcat(datatowrite, sep);
-  strcat(datatowrite, totalOffset);
-  strcat(datatowrite, sep);
-
-  Serial.print(F("Header created: "));
-  Serial.println(datatowrite);
-
-  #ifdef EEPROMDEBUG
-  Serial.println(F("Saving Header"));
-  #endif
-  int EEPROMReadLocation = save_data(EEPROMFirstaddress, datatowrite);  //load the final values into EERPOM, use the program defined value as the inital offset from EEPROM start
-  #ifdef EEPROMDEBUG
-  Serial.print(F("Header Length (from 0): "));
-  Serial.println(EEPROMReadLocation);
-  #endif
-  delay (10);
-  //Serial.println(F("New Header"));
-  return EEPROMReadLocation; //return last value location in EEPROM
-}
-
-int WriteDefaultEEPROM()  //call this to write the default values to "partition" the EEPROM, returns last EEPROM address
+void writeToEEPROM( char* nameOfSensor, char* typeOfFunction,int numberOfConstants, double* arrOfConstants, char* arrOfSigns,int appendOrOverwrite, char ifInverted)
 {
-  bool update_configured_status = 1; //indicate to update this status with what is placed below
-  int eepromoffset = EEPROMFirstaddress; //set as start address
-  char* towrite_configured = "0"; // update status flag (data good flag) as not configured
-  char* totalentriestoeeprom = "0";
-  char* totaloffsetinend = "0";
-  char* towrite_value_name = "demo";
-  char* towrite_type_of_regression = "demo";
-  char* expression_terms = "0.0";
-  char* towrite_inverted = "0.0";
-  char* towrite_cal_term1 = "0.0";
-  char* towrite_cal_term2 = "0.0";
-  char* towrite_cal_term3 = "0.0";
-  char* towrite_cal_term4 = "0.0";
-  char* towrite_cal_term5 = "0.0";
-  char* towrite_cal_term6 = "0.0";
-  char* towrite_cal_term7 = "0.0";
-  char* towrite_cal_term8 = "0.0";
-  char* towrite_cal_term9 = "0.0";
-  char* towrite_cal_term10 = "0.0"; 
-  int EEPROMReadLocation = 0; //updated value for final EEPROM location
+  //saves the fields  the same way they are printing out in their respective fabls function
+  //EEPROM.begin();
+  Serial.println("PRINTING INT appendOrOverwrite");
+  Serial.println(appendOrOverwrite);
+  int countOfCharWritten = 0;
 
-  char datatowrite[60] = {};  //EEPROM entry character array holder
-  #ifdef EEPROMDEBUG
-  Serial.println(F("Preparing to save to EEPROM"));
-  #endif
-  char* sep = "#";
-  if(update_configured_status == 1)
+  if(appendOrOverwrite == 1)
   {
-      strcat(datatowrite, towrite_configured);
-      strcat(datatowrite, sep);
+    incrementNumberOfSensorsInEEPROM();
+    Serial.println("IN APPEND");
+    int whereToBeginWriting = findWhereToWrite();//reads where to write offset from eeprom
+    EEPROM.write(whereToBeginWriting, ':');
+    delay(5);
+    countOfCharWritten++;
+    copyToEEPROM(whereToBeginWriting + countOfCharWritten,  countOfCharWritten, nameOfSensor); //copyToEEPROM should update countOfCharWritten.
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    copyToEEPROM(whereToBeginWriting + countOfCharWritten, countOfCharWritten,  typeOfFunction);
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, ifInverted);
+    delay(5);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, numberOfConstants);
+    delay(5);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    copyArrOfDoublesEEPROM(whereToBeginWriting , countOfCharWritten, numberOfConstants, arrOfConstants, arrOfSigns );//doubles are copied different so using a different function;
+    updateWhereToWriteInEEPROM(whereToBeginWriting+countOfCharWritten);
   }
-
-  strcat(datatowrite, totalentriestoeeprom);
-  strcat(datatowrite, sep);
-  strcat(datatowrite, totaloffsetinend);
-  strcat(datatowrite, sep);
-  strcat(datatowrite,":");//Augment a colon to denote a new entry
-  strcat(datatowrite, towrite_value_name);
-  strcat(datatowrite, sep);
-  strcat(datatowrite, towrite_type_of_regression);
-  strcat(datatowrite, sep);
-  strcat(datatowrite, expression_terms);
-  strcat(datatowrite, sep);
-  strcat(datatowrite, towrite_inverted);
-  strcat(datatowrite, sep);
-
-  int number_of_expressions = atoi(expression_terms); 
-  if(number_of_expressions > 0)
+  else
   {
-      strcat(datatowrite, towrite_cal_term1);
-      strcat(datatowrite, sep);
+    resetNumberOfSensorsInEEPROM();
+    incrementNumberOfSensorsInEEPROM();
+    Serial.println("IN OVERWRITE");
+    int whereToBeginWriting = 8 + EEPROMPARTITIONOFFSET;//first position after EEPROM header
+    EEPROM.write(whereToBeginWriting, ':');
+    countOfCharWritten++;
+    copyToEEPROM(whereToBeginWriting + countOfCharWritten,  countOfCharWritten, nameOfSensor); //copyToEEPROM should update countOfCharWritten.
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    copyToEEPROM(whereToBeginWriting + countOfCharWritten, countOfCharWritten,  typeOfFunction);
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, ifInverted);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, numberOfConstants);
+    delay(5);
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
+    delay(5);
+    countOfCharWritten++;
+    Serial.println("IN writeToEEPROM OVERWRITE PRINTING countOfCharWritten");
+    Serial.println(countOfCharWritten);
+    //copyArrOfDoublesEEPROM(whereToBeginWriting , countOfCharWritten, numberOfConstants, arrOfConstants, arrOfSigns );//doubles are copied different so using a different function;
+    copyArrOfDoublesEEPROM(whereToBeginWriting , countOfCharWritten, numberOfConstants, arrOfConstants, arrOfSigns );
+    updateWhereToWriteInEEPROM(whereToBeginWriting+countOfCharWritten);
   }
-  if(number_of_expressions > 1)
-  {
-      strcat(datatowrite, towrite_cal_term2);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 2)
-  {
-      strcat(datatowrite, towrite_cal_term3);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 3)
-  {
-      strcat(datatowrite, towrite_cal_term4);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 4)
-  {
-      strcat(datatowrite, towrite_cal_term5);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 5)
-  {
-      strcat(datatowrite, towrite_cal_term6);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 6)
-  {
-      strcat(datatowrite, towrite_cal_term7);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 7)
-  {
-      strcat(datatowrite, towrite_cal_term8);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 8)
-  {
-      strcat(datatowrite, towrite_cal_term9);
-      strcat(datatowrite, sep);
-  }
-  if(number_of_expressions > 9)
-  {
-      strcat(datatowrite, towrite_cal_term10);
-      strcat(datatowrite, sep);
-  }
-  Serial.println(F("Default values to be updated to EEPROM: "));
-  Serial.println(datatowrite);
-  Serial.println();
-  #ifdef EEPROMDEBUG
-  Serial.println(F("Saving New Defaults"));
-  #endif
-  EEPROMReadLocation = save_data(eepromoffset, datatowrite);  //load the final values into EEPROM
-  delay (10);
-  #ifdef EEPROMDEBUG
-  Serial.println(F("EEPROM Defaults Updated..."));
-  #endif
-  return EEPROMReadLocation; //return last EEPROM location
-} //end of WriteCalEEPROM function
-  
-int WriteCalEEPROM(int eepromoffset, char* towrite_entryvalue_name, char* towrite_type_of_regression, char* expression_terms, char* towrite_inverted, char* towrite_cal_term1, char* towrite_cal_term2, char* towrite_cal_term3, char* towrite_cal_term4, char* towrite_cal_term5, char* towrite_cal_term6, char* towrite_cal_term7, char* towrite_cal_term8, char* towrite_cal_term9, char* towrite_cal_term10, int& EEPROMLocalReadLocation){
-  char localdatatowrite[150] = {0};  //EEPROM entry character array holder
-  //Serial.println(F("Preparing to save Sensor Data to EEPROM"));
-  char* sep = "#";
-  strcat(localdatatowrite, ":");//Augment a colon to denote a new entry
-  strcat(localdatatowrite, towrite_entryvalue_name);
-  strcat(localdatatowrite, sep);
-  strcat(localdatatowrite, towrite_type_of_regression);
-  strcat(localdatatowrite, sep);
-  strcat(localdatatowrite, expression_terms);
-  strcat(localdatatowrite, sep);
-  strcat(localdatatowrite, towrite_inverted);
-  strcat(localdatatowrite, sep);
-
-  int number_of_expressions = atoi(expression_terms); 
-  if(number_of_expressions > 0)
-  {
-      strcat(localdatatowrite, towrite_cal_term1);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 1)
-  {
-      strcat(localdatatowrite, towrite_cal_term2);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 2)
-  {
-      strcat(localdatatowrite, towrite_cal_term3);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 3)
-  {
-      strcat(localdatatowrite, towrite_cal_term4);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 4)
-  {
-      strcat(localdatatowrite, towrite_cal_term5);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 5)
-  {
-      strcat(localdatatowrite, towrite_cal_term6);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 6)
-  {
-      strcat(localdatatowrite, towrite_cal_term7);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 7)
-  {
-      strcat(localdatatowrite, towrite_cal_term8);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 8)
-  {
-      strcat(localdatatowrite, towrite_cal_term9);
-      strcat(localdatatowrite, sep);
-  }
-  if(number_of_expressions > 9)
-  {
-      strcat(localdatatowrite, towrite_cal_term10);
-      strcat(localdatatowrite, sep);
-  }
-  
-  Serial.println(F("Data values to be updated to EEPROM: "));
-  Serial.println(localdatatowrite);
-  Serial.println();
-  #ifdef EEPROMDEBUG
-  Serial.println(F("Saving Values"));
-  #endif
-  EEPROMLocalReadLocation = save_data(eepromoffset, localdatatowrite);  //load the final values into EERPOM
-  delay (10);
-  #ifdef EEPROMDEBUG
-  Serial.println(F("Values Updated..."));
-  #endif
-  return EEPROMLocalReadLocation; //return current EEPROM location for last entry
-} //end of WriteCalEEPROM function
-
-int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* eepromoffsetread){
-  const int fields = 3;
-  char data[150]={0};
-  //Read in header values from EEPROM.
-  EEPROM.begin(); //NOTE: this takes 0 arguments for AVR, but a value of 512 for ESP32
-  delay(20); //allow serial to print before starting EEPROM to avoid line cutoff
-  Serial.println(F("Reading EEPROM header"));
-  delay(20);
-  int count = 0;
-  int address = EEPROMFirstaddress; //start at lowest address
-  int returnedeepromvalue=0; 
-  int returnedentries = 0;
-  while (count < fields && (address<EEPROMFirstaddress+maxheaderreadaddress)){ //total field number to read in (total number of fields), must match total cases checked
-    char read_char = (char)EEPROM.read(address); 
-      #ifdef EEPROMOUT
-      Serial.print(F("Last EEPROM Read: ")); //printout headers
-      Serial.print(read_char); //printout data
-      #endif
-    delay(1);
-    if (read_char == '#'){ //use # as section break between fields
-      Serial.println(data);
-      switch (count){
-        case 0: strcpy(configured_status, data); break;
-        case 1: strcpy(totalentriesread, data); break;
-        case 2: strcpy(eepromoffsetread, data); break;    
-      }
-      count++;
-      strcpy(data,"");
-    } 
-    else{
-      strncat(data, &read_char, 1);  
-      #ifdef EEPROMOUT
-      Serial.print(F("Read-In characters (between # marker): ")); //printout headers
-      Serial.print(data); //printout data
-      Serial.println(); //printout separator, line break
-      #endif
-    }
-    ++address;
-  }
-  #ifdef EEPROMDEBUG
-  Serial.println(F("<--Read Complete")); 
-  #endif
-  delay(10);
-    returnedeepromvalue = atoi (eepromoffsetread); //convert returned array values to integers
-    returnedentries = atoi (totalentriesread);  //convert returned array values to integers
-    return returnedeepromvalue; //return the value as an integer that was read as the last EEPROM location
 }
+
+
+void copyDoubleToEEPROM(double numToCopy,int beginningAddress, int& countOfCharWritten)
+{
+  //function that breaks up the double numToCopy into its tenths,hundredths,thouthands...
+  //then writes each to EEPROM
+  //ex 1.24535 will be written as 1.24535, where each cell is an int except the . will be a char
+  Serial.println("IN copyDoubleToEEPROM");
+  Serial.println("PRINTING numToCopy");
+  Serial.println(numToCopy);
+  //EEPROM.begin();
+  Serial.println("PRINTING beginningAddress in copyDoubleToEEPROM");
+  Serial.println(beginningAddress);
+  int addressToWriteTo = beginningAddress;
+  double copyOfNum = numToCopy;
+  long intCopyOfNum = (long) copyOfNum;
+  EEPROM.write(addressToWriteTo, intCopyOfNum);
+  delay(5);//account for write delay
+  countOfCharWritten++;
+  addressToWriteTo++;
+  EEPROM.write(addressToWriteTo, '.');
+  delay(5);//account for write delay
+  countOfCharWritten++;
+  addressToWriteTo++;
+  int iterations = 0;
+  while(iterations < regressionPrecision)
+  {//iterate and break down each component of the double number then write
+    copyOfNum = copyOfNum*10;
+    intCopyOfNum = (long) copyOfNum;
+    EEPROM.write(addressToWriteTo, intCopyOfNum%10); //takes mod10 of intCopyOfNum to get the last digit of it then copy it
+    delay(5);//account for write delay
+    addressToWriteTo++;
+    countOfCharWritten++;
+    iterations++;
+  }
+  Serial.println();
+}
+
+
+
+void copyArrOfDoublesEEPROM(int whereToBeginWriting, int& countOfCharWritten ,int numberOfConstants, double* arrOfConstants, char* arrOfSigns)
+{
+  //EEPROM.begin();
+  Serial.println("PRINTING beginningAddress in copyArrOfDoublesEEPROM");
+  Serial.println(whereToBeginWriting);
+  Serial.println("PRINTING beginningAddress in copyArrOfDoublesEEPROM");
+  Serial.println(whereToBeginWriting);
+  int numOfSigns = numberOfConstants;//thats just the relationship between number of terms in an equation an the number of signs ex. y = (+)x+1 has 2 sign, y = (+)x has 1...
+  for(int i = 0; i<numberOfConstants; i++)
+  {
+    if( arrOfSigns != NULL)//arrOfSigns is null in the case of exponential
+    {
+      Serial.println("PRINTING signToWrite in copyArrOfDoublesEEPROM");
+      Serial.println(arrOfSigns[i]);
+      EEPROM.write(whereToBeginWriting+countOfCharWritten,arrOfSigns[i]);
+      delay(5);//account for writing delay
+      countOfCharWritten++;
+      EEPROM.write(whereToBeginWriting+countOfCharWritten,'#');
+      delay(5);
+      countOfCharWritten++;
+    }
+    copyDoubleToEEPROM(fabs(arrOfConstants[i]), whereToBeginWriting+ countOfCharWritten, countOfCharWritten);
+    EEPROM.write(whereToBeginWriting+countOfCharWritten,'#');
+    delay(5);
+    countOfCharWritten++;
+
+  }
+  updateWhereToWriteInEEPROM(whereToBeginWriting+countOfCharWritten);
+}
+
+
+void copyToEEPROM(int initialAddress, int& countOfCharWritten, char* toCopy)
+{
+  //EEPROM.begin();
+  int length = strlen(toCopy);
+  int charPos = 0;
+  for(int address = initialAddress; address< initialAddress+length;address++)
+  {
+    countOfCharWritten++;
+    EEPROM.write(address, toCopy[charPos]);
+    delay(5);
+    charPos++;
+  }
+}
+
+
+void setupEEPROM()
+{
+  //this function sets up EEPROM for first time i.e. on virgin chip
+  // it will only be called if the first byte is not "1"
+  //FORMAT: configFlag#whereToWriteToIfAppending(will take up four bytes)#numberOfSensors(setting max number of sensors to 144(it most probably wont be more than that) which requires 1 byte only))
+  //1#0008#0
+  Serial.println("IN setupEEPROM function");
+  //EEPROM.begin();
+  //Configured flag is first byte
+  EEPROM.write(EEPROMPARTITIONOFFSET,'1');
+  delay(5);
+  //"#" is the seprator of these fields
+  EEPROM.write(EEPROMPARTITIONOFFSET+1,'#');
+  delay(5);
+  //initializing where to write to as 8 that is the address right after the Header(size of header is 8)
+  //EEPROM.write(EEPROMPARTITIONOFFSET+2,8);
+  updateWhereToWriteInEEPROM(8+EEPROMPARTITIONOFFSET);
+  delay(5);
+  EEPROM.write(EEPROMPARTITIONOFFSET+3,0);
+  delay(5);
+  EEPROM.write(EEPROMPARTITIONOFFSET+4,0);
+  delay(5);
+  EEPROM.write(EEPROMPARTITIONOFFSET+5,0);
+  delay(5);
+
+  EEPROM.write(EEPROMPARTITIONOFFSET+6,'#');
+  delay(5);
+
+  EEPROM.write(EEPROMPARTITIONOFFSET+7,0);
+  delay(5);
+
+}
+
+
+int findWhereToWrite()
+{
+  //EEPROM.begin();
+  int start = 2 + EEPROMPARTITIONOFFSET;//this is where the first byte of where the next available spot to write is. not global as globals take more space
+  //6 is the address of where the last byte of where to write is at
+  int whereToWrite = 0;
+  for(int address = start; address< start+4; address++)
+  {
+    whereToWrite+= EEPROM.read(address);
+  }
+  return whereToWrite;
+}
+
+void updateWhereToWriteInEEPROM(int newAddress)
+{
+  //EEPROM.begin();
+  int addressToWriteTo = 2+EEPROMPARTITIONOFFSET;
+  int toWrite = newAddress;//copy it as it will be manipulated
+  while(toWrite-256 >=0)//256 is the max each cell can hold(actually 255, but 0 is a valid address so in reality we should be checking 256)
+  {
+    EEPROM.write(addressToWriteTo, 255);
+    delay(5);
+    addressToWriteTo++;
+    toWrite = toWrite - 255;
+  }
+  EEPROM.write(addressToWriteTo, toWrite);
+  delay(5);
+}
+
+void incrementNumberOfSensorsInEEPROM()
+{
+  //EEPROM.begin();
+  EEPROM.write(7,EEPROM.read(7)+1);// address 7 is always where the number of sensors will be stored.
+}
+
+void resetNumberOfSensorsInEEPROM()
+{
+  //EEPROM.begin();
+  EEPROM.write(7,0);// address 7 is always where the number of sensors will be stored.
+}
+
+void printEEPROM()
+{
+  Serial.println("PRINTING EEPROM");
+  int limit = findWhereToWrite();
+  for(int i = 0; i<limit; i++)
+  {
+    Serial.print(EEPROM.read(i));
+    Serial.print(" ");
+  }
+  Serial.println();
+  Serial.println("ENDED PRINTING");
+  Serial.println();
+}
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+//NOTE: MK; disabled this function.
+//EEPROM Handler Functions
+// int WriteCalEEPROMHeader(int eepromoffset, char* towrite_configured, int entries)
+// {  //function in development to take care of writing the first part of the EEPROM.
+//   #ifdef EEPROMDEBUG
+//   Serial.println("Prep. EEPROM Header");
+//   #endif
+//   char datatowrite[150] = {0};  //EEPROM entry character array holder
+//   char totalentries[4] = {0}; //holder
+//   char totalOffset[5] = {0}; //holder
+//   itoa(entries, totalentries, 10);  //convert the int into an entry in the char* array for the total entries in the eeprom
+//   itoa(eepromoffset, totalOffset, 10);  //convert the int into an entry in the char* array for the total entries in the eeprom
+//
+//   char* sep = "#";
+//   //prepare EEPROM header
+//   strcat(datatowrite, towrite_configured);
+//   strcat(datatowrite, sep);
+//   strcat(datatowrite, totalentries);
+//   strcat(datatowrite, sep);
+//   strcat(datatowrite, totalOffset);
+//   strcat(datatowrite, sep);
+//
+//   Serial.print(F("Header created: "));
+//   Serial.println(datatowrite);
+//
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("Saving Header"));
+//   #endif
+//   int EEPROMReadLocation = save_data(EEPROMFirstaddress, datatowrite);  //load the final values into EERPOM, use the program defined value as the inital offset from EEPROM start
+//   #ifdef EEPROMDEBUG
+//   Serial.print(F("Header Length (from 0): "));
+//   Serial.println(EEPROMReadLocation);
+//   #endif
+//   delay (10);
+//   //Serial.println(F("New Header"));
+//   return EEPROMReadLocation; //return last value location in EEPROM
+// }
+
+//NOTE: MK; disabled this function as it is not needed.
+// int WriteDefaultEEPROM()  //call this to write the default values to "partition" the EEPROM, returns last EEPROM address
+// {
+//   bool update_configured_status = 1; //indicate to update this status with what is placed below
+//   int eepromoffset = EEPROMFirstaddress; //set as start address
+//   char* towrite_configured = "0"; // update status flag (data good flag) as not configured
+//   char* totalentriestoeeprom = "0";
+//   char* totaloffsetinend = "0";
+//   char* towrite_value_name = "demo";
+//   char* towrite_type_of_regression = "demo";
+//   char* expression_terms = "0.0";
+//   char* towrite_inverted = "0.0";
+//   char* towrite_cal_term1 = "0.0";
+//   char* towrite_cal_term2 = "0.0";
+//   char* towrite_cal_term3 = "0.0";
+//   char* towrite_cal_term4 = "0.0";
+//   char* towrite_cal_term5 = "0.0";
+//   char* towrite_cal_term6 = "0.0";
+//   char* towrite_cal_term7 = "0.0";
+//   char* towrite_cal_term8 = "0.0";
+//   char* towrite_cal_term9 = "0.0";
+//   char* towrite_cal_term10 = "0.0";
+//   int EEPROMReadLocation = 0; //updated value for final EEPROM location
+//   //configuredStatus#numberOfEntriesInEEPROM#totalOffsetInEnd#nameOfSensor#typeOfRegressionFunction#expressionTerms
+//   char datatowrite[60] = {};  //EEPROM entry character array holder
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("Preparing to save to EEPROM"));
+//   #endif
+//   char* sep = "#";
+//   if(update_configured_status == 1)
+//   {
+//       strcat(datatowrite, towrite_configured);
+//       strcat(datatowrite, sep);
+//   }
+//
+//   strcat(datatowrite, totalentriestoeeprom);
+//   strcat(datatowrite, sep);
+//   strcat(datatowrite, totaloffsetinend);
+//   strcat(datatowrite, sep);
+//   strcat(datatowrite,":");//Augment a colon to denote a new entry
+//   strcat(datatowrite, towrite_value_name);
+//   strcat(datatowrite, sep);
+//   strcat(datatowrite, towrite_type_of_regression);
+//   strcat(datatowrite, sep);
+//   strcat(datatowrite, expression_terms);
+//   strcat(datatowrite, sep);
+//   strcat(datatowrite, towrite_inverted);
+//   strcat(datatowrite, sep);
+//
+//   int number_of_expressions = atoi(expression_terms);
+//   if(number_of_expressions > 0)
+//   {
+//       strcat(datatowrite, towrite_cal_term1);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 1)
+//   {
+//       strcat(datatowrite, towrite_cal_term2);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 2)
+//   {
+//       strcat(datatowrite, towrite_cal_term3);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 3)
+//   {
+//       strcat(datatowrite, towrite_cal_term4);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 4)
+//   {
+//       strcat(datatowrite, towrite_cal_term5);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 5)
+//   {
+//       strcat(datatowrite, towrite_cal_term6);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 6)
+//   {
+//       strcat(datatowrite, towrite_cal_term7);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 7)
+//   {
+//       strcat(datatowrite, towrite_cal_term8);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 8)
+//   {
+//       strcat(datatowrite, towrite_cal_term9);
+//       strcat(datatowrite, sep);
+//   }
+//   if(number_of_expressions > 9)
+//   {
+//       strcat(datatowrite, towrite_cal_term10);
+//       strcat(datatowrite, sep);
+//   }
+//   Serial.println(F("Default values to be updated to EEPROM: "));
+//   Serial.println(datatowrite);
+//   Serial.println();
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("Saving New Defaults"));
+//   #endif
+//   EEPROMReadLocation = save_data(eepromoffset, datatowrite);  //load the final values into EEPROM
+//   delay (10);
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("EEPROM Defaults Updated..."));
+//   #endif
+//   return EEPROMReadLocation; //return last EEPROM location
+// } //end of WriteCalEEPROM function
+
+//NOTE: MK disabled this function
+// int WriteCalEEPROM(int eepromoffset, char* towrite_entryvalue_name, char* towrite_type_of_regression, char* expression_terms, char* towrite_inverted, char* towrite_cal_term1, char* towrite_cal_term2, char* towrite_cal_term3, char* towrite_cal_term4, char* towrite_cal_term5, char* towrite_cal_term6, char* towrite_cal_term7, char* towrite_cal_term8, char* towrite_cal_term9, char* towrite_cal_term10, int& EEPROMLocalReadLocation){
+//   char localdatatowrite[150] = {0};  //EEPROM entry character array holder
+//   //Serial.println(F("Preparing to save Sensor Data to EEPROM"));
+//   char* sep = "#";
+//   strcat(localdatatowrite, ":");//Augment a colon to denote a new entry
+//   strcat(localdatatowrite, towrite_entryvalue_name);
+//   strcat(localdatatowrite, sep);
+//   strcat(localdatatowrite, towrite_type_of_regression);
+//   strcat(localdatatowrite, sep);
+//   strcat(localdatatowrite, expression_terms);
+//   strcat(localdatatowrite, sep);
+//   strcat(localdatatowrite, towrite_inverted);
+//   strcat(localdatatowrite, sep);
+//
+//   int number_of_expressions = atoi(expression_terms);
+//   if(number_of_expressions > 0)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term1);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 1)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term2);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 2)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term3);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 3)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term4);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 4)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term5);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 5)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term6);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 6)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term7);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 7)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term8);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 8)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term9);
+//       strcat(localdatatowrite, sep);
+//   }
+//   if(number_of_expressions > 9)
+//   {
+//       strcat(localdatatowrite, towrite_cal_term10);
+//       strcat(localdatatowrite, sep);
+//   }
+//
+//   Serial.println(F("Data values to be updated to EEPROM: "));
+//   Serial.println(localdatatowrite);
+//   Serial.println();
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("Saving Values"));
+//   #endif
+//   EEPROMLocalReadLocation = save_data(eepromoffset, localdatatowrite);  //load the final values into EERPOM
+//   delay (10);
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("Values Updated..."));
+//   #endif
+//   return EEPROMLocalReadLocation; //return current EEPROM location for last entry
+// } //end of WriteCalEEPROM function
+
+//NOTE: MK disabled this function
+// int ReadCalEEPROMHeader(char* configured_status, char* totalentriesread, char* eepromoffsetread){
+//   const int fields = 3;
+//   char data[150]={0};
+//   //Read in header values from EEPROM.
+//   EEPROM.begin(); //NOTE: this takes 0 arguments for AVR, but a value of 512 for ESP32
+//   delay(20); //allow serial to print before starting EEPROM to avoid line cutoff
+//   Serial.println(F("Reading EEPROM header"));
+//   delay(20);
+//   int count = 0;
+//   int address = EEPROMFirstaddress; //start at lowest address
+//   int returnedeepromvalue=0;
+//   int returnedentries = 0;
+//   Serial.println("HERE 1");
+//   Serial.println("READING VALUES FROM EEPROM:First Try");
+//   delay(1000);
+//   for(int i = 0; i < 1023; i++)
+//   {
+//     Serial.print(EEPROM.read(i));
+//     Serial.print(" ");
+//   }
+//   Serial.println();
+//   while (count < fields && (address<EEPROMFirstaddress+maxheaderreadaddress)){ //total field number to read in (total number of fields), must match total cases checked
+//     char read_char = (char)EEPROM.read(address);
+//       #ifdef EEPROMOUT
+//       Serial.print(F("Last EEPROM Read: ")); //printout headers
+//       Serial.print(read_char); //printout data
+//       #endif
+//     delay(10);
+//     if (read_char == '#'){ //use # as section break between fields
+//       Serial.println("WTH");
+//       delay(1000);
+//       Serial.println(data);
+//       delay(1000);
+//       Serial.print("COUNT: ");
+//       delay(1000);
+//       Serial.println(count);
+//       delay(1000);
+//       switch (count){
+//         case 0: Serial.println("SWITCH0"); break;//strcpy(configured_status, data); break;
+//         case 1: Serial.println("SWITCH1"); break;//strcpy(totalentriesread, data); break;
+//         case 2: Serial.println("SWITCH2"); break;//strcpy(eepromoffsetread, data); break;
+//       }
+//       count++;
+//       strcpy(data,"");
+//     }
+//     else{
+//       strncat(data, &read_char, 1);
+//       #ifdef EEPROMOUT
+//       Serial.print(F("Read-In characters (between # marker): ")); //printout headers
+//       Serial.print(data); //printout data
+//       Serial.println(); //printout separator, line break
+//       #endif
+//     }
+//     ++address;
+//   }
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("<--Read Complete"));
+//   #endif
+//   delay(10);
+//     returnedeepromvalue = atoi (eepromoffsetread); //convert returned array values to integers
+//     returnedentries = atoi (totalentriesread);  //convert returned array values to integers
+//     return returnedeepromvalue; //return the value as an integer that was read as the last EEPROM location
+// }
 
 int save_data(int offset, char* datalocal){
   //Mechanism called by another function to write pre-packaged data to the EEPROM
   #ifdef EEPROMDEBUG
   Serial.println(F("Call to EEPROM Write Function"));
   #endif
-  delay (20);  //allow serial 
+  delay (20);  //allow serial
+  Serial.println("PRINTING DATALOCAL VARIABLE PASSED TO SAVE_DATA() IN IT");
+  Serial.print("OFFEST:");
+  Serial.println(offset);
+  for(int i = 0; i<strlen(datalocal); i++ )
+  {
+    Serial.print(datalocal[i]);
+  }
+  Serial.println();
+  Serial.println("ENDED PRINTING");
   EEPROM.begin(); //this takes 0 arguments for AVR, but a value of 512 for ESP32
+  delay(1000);
   int index = 0; //variable to save final index location
   for (int i = offset; i < (strlen(datalocal)+ offset); ++i){
-    EEPROM.write(i, (int)datalocal[i]);
-    delay(1);
+    Serial.print("Saving the following char to eeprom ");
+    Serial.print(datalocal[i]);
+    Serial.print(" at location: ");
+    Serial.println(i);
+    EEPROM.update(i, datalocal[i]); //Using update as it increases the life of EEPROM.
+    //EEPROM.commit();
+    delay(100);
+    //delay(1);
     index = i;
   }
-  //EEPROM.commit(); //Not required for AVR, only ESP32
-//  Serial.print(F("Write Function started, address: "));
-//  Serial.println(offset);  // last EEPROM address written  //debug line
-//  Serial.print(F("...Complete, total entries for session: ")); //debug line
-//  Serial.println(index);  // last EEPROM address written  //debug line
-//  return index;  // last EEPROM address written
   delay(10);
 } //end of save_data function define
 
@@ -1842,14 +2201,14 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
   int selectionValue =  NumericIntegerInput();
   Serial.println();
   int enteredcorrectly = 0;
-    if (selectionValue==1) //force to loop until user indicates correctly entered 
+    if (selectionValue==1) //force to loop until user indicates correctly entered
       {
           while (enteredcorrectly == 0)
           {
            Serial.print (F("(1)Append OR (2)Overwrite, EEPROM?: "));
            appendedquestion = NumericIntegerInput();
            Serial.println();
-           Serial.print (F("Input Reference Name ("));  
+           Serial.print (F("Input Reference Name ("));
            Serial.print (inputaraylength,DEC); //display specified array length for user inputted characters)
            Serial.print (F(" chars max.): "));
            Serial.println();
@@ -1872,7 +2231,7 @@ int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inpu
              }
           }
      #ifdef EEPROMDEBUG
-     Serial.println (F("Saving...")); 
+     Serial.println (F("Saving..."));
      #endif
     }
     else if (selectionValue==0)
@@ -1939,10 +2298,10 @@ double readSensorInputMedian(int inputpin, int readcycles, bool enabSensorReadDe
       //Perform median filter for returned first sensor read
       if ((a <= b) && (a <= c)) {
           middle = (b <= c) ? b : c;
-      } 
+      }
       else if ((b <= a) && (b <= c)) {
           middle = (a <= c) ? a : c;
-      } 
+      }
       else {
           middle = (a <= b) ? a : b;
       }
@@ -1950,7 +2309,7 @@ double readSensorInputMedian(int inputpin, int readcycles, bool enabSensorReadDe
       middle_holder = (middle_holder+middle); //take current read median and add it to the past reads, in prep to perform average
       if (enabavgSensorReadDelay!=0){
          delay (avgsensorReadDelay);
-      }    
+      }
  }
  return (((middle_holder/(double)readcycles))); //return calculated average of median read values
 }
@@ -1961,7 +2320,7 @@ double readSensorInputSimpleAverage(int inputpin, int readcycles, bool enabavgSe
   for (int i=0; i<readcycles; i++){
       int a= 0; //holder for the raw ADC sensor reads
       unsigned long holder = 0; //holder for the sum calculation
-      a = analogRead(inputpin);    
+      a = analogRead(inputpin);
       holder = (holder+a); //take current read median and add it to the past reads, in prep to perform average
       if (enabavgSensorReadDelay!=0){
          delay (avgsensorReadDelay);
@@ -1980,16 +2339,18 @@ void listPoints(int totalPoints, double* px, double* py)
     Serial.print("(");
     Serial.print(px[i]);
     Serial.print(",");
-    Serial.print(py[i]); 
+    Serial.print(py[i]);
     Serial.print(")");
     Serial.println();
   }
 }
+
 void printColumnSpace()
 {
  Serial.print(F("      "));
 }
-void printRegErrors (double valx, double valy, double y, double absoluteError, double error) 
+
+void printRegErrors (double valx, double valy, double y, double absoluteError, double error)
 {
   Serial.print(valx,reportingPrecision);
   printColumnSpace();
@@ -2001,20 +2362,65 @@ void printRegErrors (double valx, double valy, double y, double absoluteError, d
   printColumnSpace();
   Serial.println(error,reportingPrecision);
 }
-  
+
 void adHocPointEntry()
 {
     Serial.println("Add pts: ");
-    pointInputProcess(); 
-    
+    pointInputProcess();
+
     dataEntrySelection (totalPoints);// select point entry method
 }
 
-void loop() 
+void loop()
 {
+
+
+/////////////////////////////TESTS///////////////////////////////////////////////
+  // incrementNumberOfSensorsInEEPROM();
+  // incrementNumberOfSensorsInEEPROM();
+  // printEEPROM();//should have 2 at address 7
+  //
+  // //Testing updating whereToWrite
+  // updateWhereToWriteInEEPROM(255);
+  // Serial.println("SHOULD PRINT 255 0 0 0 IN ADDRESS");
+  // printEEPROM();
+  // updateWhereToWriteInEEPROM(256);
+  // Serial.println("SHOULD PRINT 255 1 0 0 IN ADDRESS");
+  // printEEPROM();
+  //
+  //
+  // //Testing copyDoubleToEEPROM
+  // int num = 0;
+  // copyDoubleToEEPROM(1.23456,num,num);
+  // Serial.println("SHOULD PRINT 1.23456 IN BEGINNING AT ADDRESS 0");
+  // printEEPROM();
+  // Serial.println(num);
+
+  //Testing writeToEEPROM
+  double arrOfConstants[2]  = {1.23456,2.23456};
+  double arrOfConstants2[2]  = {3.45678,4.56789};
+  char arrOfSigns [1]= {'+'};
+  char arrOfSigns2 [1]= {'-'};
+
+//void writeToEEPROM( char* nameOfSensor, char* typeOfFunction,int numberOfConstants, double* arrOfConstants, char* arrOfSigns,char appendOrOverwrite, char ifInverted)
+  // writeToEEPROM( "sensor1", "linear", 2,  arrOfConstants,  arrOfSigns,'2', '0');
+  // printEEPROM();
+  // writeToEEPROM( "sensor2", "quadra", 2,  arrOfConstants2,  arrOfSigns2,'1', '0');
+  // printEEPROM();
+  // writeToEEPROM( "sensor3", "testin", 2,  arrOfConstants2,  arrOfSigns2,'1', '0');
+  // printEEPROM();
+  //EEPROM.begin();
+  Serial.println("READING IN MAIN LOOP FOR 250 ADDRESSES");
+  for(int i = 0; i<250; i++)
+  {
+    Serial.print(EEPROM.read(i));
+    Serial.print(" ");
+  }
+
+/////////////////////////////////////////////////////////////////////////////////
   bool dealocArrays=0;//keep arrays, flag is normal pos.
   unsigned int selectedValue = 0; //initialize selection choice holder as 0
-  unsigned int runStatus = 0;  // Status of previous function's run, if an error is returned, this will come back as zero, chose next action accordingly 
+  unsigned int runStatus = 0;  // Status of previous function's run, if an error is returned, this will come back as zero, chose next action accordingly
   displayFitChoiceMenu(); //display menu to user
   //NumericIntegerInput();
   Serial.println(); //add in line break after input comes in for selection
@@ -2028,8 +2434,36 @@ void loop()
   {
     Serial.println();
     Serial.println();
-    Serial.print(F("Complete"));
+    Serial.println(F("Complete"));
   }
+
+  Serial.println("READING VALUES FROM EEPROM:First Try");
+
+  delay(1000);
+  // for(int i = 0; i < 1023; i++)
+  // {
+  //   Serial.print(EEPROM.read(i));
+  //   Serial.print(" ");
+  // }
+  // Serial.println();
+  printEEPROM();
+  //Testing if eeprom is writing and working
+  //EEPROM.begin();
+  // Serial.println("READING VALUES FROM EEPROM: Second Try");
+  // EEPROM.write(0,'m');
+  // delay(5);
+  // EEPROM.write(1,'o');
+  // delay(5);
+  // EEPROM.write(2,'g');
+  // delay(5);
+  // EEPROM.write(3,'o');
+  // delay(5);
+  // for(int i = 0; i < 1023; i++)
+  // {
+  //   Serial.print(EEPROM.read(i));
+  //   Serial.print(" ");
+  // }
+
   if (dealocArrays ==1)
   {
      dealocArrays =0; //reset flag
@@ -2038,4 +2472,4 @@ void loop()
     delete[] py;
     delete[] pyregress;
   }
-} 
+}
