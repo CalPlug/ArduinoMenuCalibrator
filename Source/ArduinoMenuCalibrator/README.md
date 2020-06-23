@@ -1,4 +1,4 @@
-The following offers insight to how this library works, and a few changes that would need
+The following offers insight to how this program works, and a few changes that would need
 to be made in case any changes are added.
 
 -- The Program is designed to perform regressions on a given set of data points(x and y values). It then determines the coefficient of each term of the resulting
