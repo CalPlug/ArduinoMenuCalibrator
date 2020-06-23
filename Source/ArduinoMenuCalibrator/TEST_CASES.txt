@@ -1,0 +1,81 @@
+----PERFORMING REGRESSION TESTS----
+All regressions have been tested. All produce correct outputs except the Power and Nth order functions.
+
+-----WRITING TO EEPROM TESTS----
+1.Appending a linear, quadratic, exponential,logarithmic function on a virgin board
+  ;result: WORKS, it basically 'overwrites'.
+2.Overwriting linear, quadratic, exponential,logarithmic function on a configured board
+  ;result: WORKS, it overwrites existing memory, and updates the whereToWriteTo field correctly.
+3.Appending a linear, quadratic, exponential,logarithmic function on a configured board
+  ;result: WORKS, it appends to existing memory, and updates the whereToWriteTo field correctly.
+
+-----READING FROM EEPROM TESTS----
+1.Basically all functions were successfully read out to the monitor, and getArrayOfConstants returns the correct array.
+Test cases tested:
+/////////////////////////////TESTS///////////////////////////////////////////////
+  // incrementNumberOfSensorsInEEPROM();
+  // incrementNumberOfSensorsInEEPROM();
+  // printEEPROM();//should have 2 at address 7
+  //
+  // //Testing updating whereToWrite
+  // updateWhereToWriteInEEPROM(255);
+  // Serial.println("SHOULD PRINT 255 0 0 0 IN ADDRESS");
+  // printEEPROM();
+  // updateWhereToWriteInEEPROM(256);
+  // Serial.println("SHOULD PRINT 255 1 0 0 IN ADDRESS");
+  // printEEPROM();
+  //
+  //
+  // //Testing copyDoubleToEEPROM
+  // int num = 0;
+  // copyDoubleToEEPROM(1.23456,num,num);
+  // Serial.println("SHOULD PRINT 1.23456 IN BEGINNING AT ADDRESS 0");
+  // printEEPROM();
+  // Serial.println(num);
+  //Testing writeToEEPROM
+  // double arrOfConstants[2]  = {2.23456,3.23456};
+  // double arrOfConstants2[3]  = {3.45678,4.56789, 5.67891};
+  // char arrOfSigns [3]= {'+','+'};
+  // char arrOfSigns2 [4]= {'+','+','+'};
+  //
+  //
+  //
+  // writeToEEPROM( "sensor4", "power", 2,  arrOfConstants,  arrOfSigns,1, '0');
+  // writeToEEPROM( "sensor1", "quadratic", 3,  arrOfConstants2,  arrOfSigns2,1, '0');
+  // writeToEEPROM( "sensor2", "logarithmic", 2,  arrOfConstants,  arrOfSigns2,1, '0');
+  // writeToEEPROM( "sensor3", "exponential", 2,  arrOfConstants,  arrOfSigns2,1, '0');
+  // writeToEEPROM( "sensor0", "linear", 2,  arrOfConstants,  arrOfSigns,1, '0');
+  //
+  //
+  // double constantsAnsExp[2] = {0.0};
+  // double constantsAnsLog[2] = {0.0};
+  // double constantsAnsLin[2] = {0.0};
+  // double constantsAnsQuad[3] = {0.0};
+  // double constantsAnsPow[2] = {0.0};
+  // bool found1 = getArrayOfConstants("sensor3", "exponential",constantsAnsExp,2);
+  // Serial.println("PRINTING constantsAns for Exp");
+  // Serial.println(constantsAnsExp[0]);
+  // Serial.println(constantsAnsExp[1]);
+  //
+  // bool found2 = getArrayOfConstants("sensor2", "logarithmic",constantsAnsLog,2);
+  // Serial.println("PRINTING constantsAns for Log");
+  // Serial.println(constantsAnsLog[0]);
+  // Serial.println(constantsAnsLog[1]);
+  //
+  // getArrayOfConstants("sensor0", "linear",constantsAnsLin,2);
+  // Serial.println("PRINTING constantsAns for Lin");
+  // Serial.println(constantsAnsLin[0]);
+  // Serial.println(constantsAnsLin[1]);
+  //
+  // getArrayOfConstants("sensor1", "quadratic",constantsAnsQuad,3);
+  // Serial.println("PRINTING constantsAns for Quad");
+  // Serial.println(constantsAnsQuad[0]);
+  // Serial.println(constantsAnsQuad[1]);
+  // Serial.println(constantsAnsQuad[2]);
+  //
+  // bool found = getArrayOfConstants("sensor4", "power",constantsAnsPow,2);
+  // Serial.println("PRINTING constantsAns for Pow");
+  // Serial.println(constantsAnsPow[0]);
+  // Serial.println(constantsAnsPow[1]);
+
+/////////////////////////////////////////////////////////////////////////////////

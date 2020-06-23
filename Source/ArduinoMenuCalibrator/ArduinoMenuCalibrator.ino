@@ -64,21 +64,19 @@ void setup() {
   EEPROM.begin();
   //EEPROM.write(0,0); this line was there to simulate a virgin eeprom
   //delay(5);
-  for(int i = 0; i<500;i++)
+  //NOTE: comment the loop below to stop it from erasing values saved to the eeprom.
+  for(int i = 0; i<511;i++)
   {
     EEPROM.write(i,0);
     delay(5);
   }
 
-  if(EEPROM.read(0) != '1')
+  if(EEPROM.read(EEPROMPARTITIONOFFSET) != '1')
   {
     //If EEPROM not configured, then configure
     Serial.println("SETTING UP EEPROM IN SETUP()");
-;    setupEEPROM();
+    setupEEPROM();
   }
-  //reading first 20 address to make sure
-
-
 }
 
 // Functions for Fit Analysis By Least Squares, multiple methods for different regression types and corresponding output helper functions
@@ -113,11 +111,7 @@ void fabls_linear(unsigned int n,double *px,double *py)
       s = sqrt(s / r);
       sign = (a1 < 0.0) ? '-' : '+';
       sign2 = (a2 < 0.0) ? '-' : '+';
-      Serial.println("PRINTING CHAR SIGN IN FABLS_LINEAR");
-      Serial.println(sign);
-      Serial.println("PRINTING CHAR SIGN2 IN FABLS_LINEAR");
-      Serial.println(sign2);
-      Serial.println();
+
 
       //mask |= '\x01';
       z[0] = s;
@@ -180,10 +174,6 @@ void fabls_linear(unsigned int n,double *px,double *py)
           a1 = 1.0/(a1);
           a2 = 1.0/(a2);
       }
-      Serial.println("PRINTING a2");
-      Serial.println(a2);
-      Serial.println("PRINTING a1");
-      Serial.println(a1);
       double arrOfConstants [2] = {a2,a1};
       char arrOfSigns [3] = {(char)sign2,(char)sign};//size is 3 to account for the '\n'
       writeToEEPROM( entryname, "linear", 2, arrOfConstants, arrOfSigns,  append,  reportInvertedValues);
@@ -194,7 +184,6 @@ void fabls_linear(unsigned int n,double *px,double *py)
       // dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
       // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       // Serial.println();
-      //NOTE: MK; need to find where we can write in the eeprom????
       //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
       //Serial.println (currentoffset, DEC); //print the position as an integer
@@ -349,7 +338,6 @@ void fabls_quad(unsigned int n,double *px,double *py)
       // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
       // dtostrf(a3, EEPROMVariableLength, EEPROMDecimalPrecision, squared);
       // Serial.println();
-      //TODO: sub line below
       //int currentoffset = ReadCalEEPROMHeader(configured_status_cached, totalentriesread_cached, eepromoffsetread_cached);
       EEPROMStatusMessages(1); //EEPROM readout message (redundant text pulled from function)
       //Serial.println (currentoffset, DEC); //print the position as an integer
@@ -365,13 +353,11 @@ void fabls_quad(unsigned int n,double *px,double *py)
       //using field append by adding
       // if(append == 1)
       // {
-      //   //TODO: add new save function here
       //   //WriteCalEEPROMHeader(EEPROMCurrentPosition, "1", 1); //Append option: update the header after the last write, write in last EEPROM address location
       //   //Serial.println("We made it to append.");
       // }
       // if(append == 2)
       // {
-      //   //TODO: add new save function here
       //   //WriteCalEEPROMHeader(offsetInEEPROM, "1", 1); ////using overwite next field as first as option: update the header after the last write, write in last EEPROM address location as first
       //   //Serial.println("We made it to overwrite.");
       // }
@@ -468,14 +454,12 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
 
 void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, double *py)
 {
-  byte mask='\x00',sign;//why is it a byte mask? god knows //MK
    pyregress = new double[N];  // define holder for calculated regression values for all points
    double averagepercenterrorHolder[N] = {0}; //initialize holder with 0's
    double averageabsoluteerrorHolder[N] = {0}; //initialize holder with 0's
    Serial.print(F("The fitted (order "));
    Serial.print(n);
    Serial.print(F(") Polynomial is given by:\n y ="));
-   char arrOfSigns[N+2];//number of terms of a polynomial of order N is N+1
    for (int i = 0; i < (n + 1); i++) // total points is equal to n+1
     {
       if (i == 0) //supress the initial + sign in the display
@@ -487,8 +471,6 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
           Serial.print(F(" + ("));
          }
       Serial.print(a[i],reportingPrecision); //display with 4 decimal places
-      sign  = (a[i] < 0) ? '-' : '+';
-      arrOfSigns[i] = (char)sign;
       Serial.print(F(")"));
       Serial.print(F("x^"));
       Serial.print(i);
@@ -506,8 +488,17 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
       {
         y = y + a[q]*pow((float)px[j], (float)q);  // y has ((some constant) * (x to a power)) being added to it repeatedly through the for loop
       }
+      double error;
+  	if (py[j] == 0){
+  		py[j] = py[j] + 1;
+  		y = y+1;
+  		error = ((y - py[j])/py[j])*100;
+  	}
+      else
+      {
+        error = ((y - py[j])/py[j])*100;
+      }
 
-    double error = ((y - py[j])/py[j])*100;
     double absoluteError = y - py[j];
     Serial.print(px[j], reportingPrecision);
     Serial.print(F("      "));
@@ -561,7 +552,8 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
         writeToEEPROM( entryname, "quadratic", N+1, regressionterms, arrOfSigns,  append,  reportInvertedValues);
       }
       else
-      {
+      {6
+
         writeToEEPROM( entryname, "quadratic", N+1, a, arrOfSigns,  append,  reportInvertedValues);
 
       }
@@ -675,7 +667,6 @@ void fabls_exp(unsigned int n,double *px,double *py)
          s += dy * dy;
       }
       s = sqrt(s / r);
-      sign = (a1 < 0) ? '-' : '+';
       textSectionBreak();
       mask |= '\x04';
       z[2] = s;
@@ -747,7 +738,9 @@ void fabls_exp(unsigned int n,double *px,double *py)
       // itoa(expressionTotalTerms, expressionTerms, 10); //convert as base 10, integer to array to pass into EERPOM functions requiring CHAR inputs
       // dtostrf(a1, EEPROMVariableLength, EEPROMDecimalPrecision, constant); // Leave room for too large numbers!
       // dtostrf(a2, EEPROMVariableLength, EEPROMDecimalPrecision, linear); // Leave room for too large numbers!
-      double arrOfConstants [2] = {a1,a2};
+      sign = (a1 < 0) ? '-' : '+';
+      sign2 = (a2 < 0) ? '-' : '+';
+      double arrOfConstants [3] = {a1,a2};
       char arrOfSigns[3]  = {(char)sign,(char)sign2};
       writeToEEPROM( entryname, "exponential", 2, arrOfConstants, arrOfSigns,  append,  reportInvertedValues);
       Serial.println();
@@ -956,7 +949,7 @@ void fabls_power(unsigned int n,double *px,double *py)
    regressionErrorHeader();  //Display the text header for the  fittign errors returned data (common display function used to save memory)
    for (unsigned int i = 0; i < n; ++i)
    {
-      double y = (a2) * px[i] + (a1);
+      double y = a1 * pow(px[i],a2);
       double absoluteError = y - py[i];
       // PercentError%=((regressionvalue-calibrationvalue)/calibrationvalue)*100
 
@@ -1279,6 +1272,22 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
 
     return 1; // program restarts here
   }
+  else if(fitChoice == 11)
+  {
+    //read out EEPROM
+    int numberOfSensors = EEPROM.read(EEPROMPARTITIONOFFSET+7);
+    delay(5);
+    if( numberOfSensors>0)
+    {
+      //check if EEPROM has sensor data or not
+      Serial.println();
+      readEEPROM();
+      return 1;
+    }
+    Serial.println("Nothing has been Written to EEPROM");
+    return 1;
+
+  }
   // Invalid
   else
   {
@@ -1582,12 +1591,14 @@ void displayFitChoiceMenu()
   Serial.println(F("  (5)Power - Min 3 pts, x != 0"));
   Serial.println(F("  (6)Nth Order Polynomial - Min pts = order+1")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
   Serial.println(F("  (7)List Pts in Memory"));
+  Serial.println(F("  (7)Read out EEPROM"));
   Serial.println(F("  (8)Manual Pt Entry"));
   Serial.println(F("  (9)Delete Current Points"));
   Serial.print(F("  (10)Toggle Use Cache Points on fits, current status: "));
   Serial.println(usecached,DEC);
+  Serial.println(F("  (11)Read out EEPROM"));
   Serial.println("  (0)Exit");
-  Serial.print("Option (0-10): ");
+  Serial.print("Option (0-11): ");
 }
 
 void textSectionBreak(){
@@ -1609,21 +1620,19 @@ void pointNumberWarnings (unsigned int error){
      {} //noting said if not a selected error from list
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////EEPROM MEMORY MANAGMENT///////////////////////////////////////////////////////////////
 
 
 void writeToEEPROM( char* nameOfSensor, char* typeOfFunction,int numberOfConstants, double* arrOfConstants, char* arrOfSigns,int appendOrOverwrite, char ifInverted)
 {
-  //saves the fields  the same way they are printing out in their respective fabls function
+  //saves the fields  the same way they are printed out in their respective fabls function
   //EEPROM.begin();
-  Serial.println("PRINTING INT appendOrOverwrite");
-  Serial.println(appendOrOverwrite);
+  //Format: ":nameOfSensor#typeOfFunction#ifInverted#numberOfConstants#all the constants#"
   int countOfCharWritten = 0;
 
   if(appendOrOverwrite == 1)
   {
     incrementNumberOfSensorsInEEPROM();
-    Serial.println("IN APPEND");
     int whereToBeginWriting = findWhereToWrite();//reads where to write offset from eeprom
     EEPROM.write(whereToBeginWriting, ':');
     delay(5);
@@ -1655,7 +1664,6 @@ void writeToEEPROM( char* nameOfSensor, char* typeOfFunction,int numberOfConstan
   {
     resetNumberOfSensorsInEEPROM();
     incrementNumberOfSensorsInEEPROM();
-    Serial.println("IN OVERWRITE");
     int whereToBeginWriting = 8 + EEPROMPARTITIONOFFSET;//first position after EEPROM header
     EEPROM.write(whereToBeginWriting, ':');
     countOfCharWritten++;
@@ -1678,8 +1686,7 @@ void writeToEEPROM( char* nameOfSensor, char* typeOfFunction,int numberOfConstan
     EEPROM.write(whereToBeginWriting + countOfCharWritten, '#');
     delay(5);
     countOfCharWritten++;
-    Serial.println("IN writeToEEPROM OVERWRITE PRINTING countOfCharWritten");
-    Serial.println(countOfCharWritten);
+
     //copyArrOfDoublesEEPROM(whereToBeginWriting , countOfCharWritten, numberOfConstants, arrOfConstants, arrOfSigns );//doubles are copied different so using a different function;
     copyArrOfDoublesEEPROM(whereToBeginWriting , countOfCharWritten, numberOfConstants, arrOfConstants, arrOfSigns );
     updateWhereToWriteInEEPROM(whereToBeginWriting+countOfCharWritten);
@@ -1692,12 +1699,7 @@ void copyDoubleToEEPROM(double numToCopy,int beginningAddress, int& countOfCharW
   //function that breaks up the double numToCopy into its tenths,hundredths,thouthands...
   //then writes each to EEPROM
   //ex 1.24535 will be written as 1.24535, where each cell is an int except the . will be a char
-  Serial.println("IN copyDoubleToEEPROM");
-  Serial.println("PRINTING numToCopy");
-  Serial.println(numToCopy);
   //EEPROM.begin();
-  Serial.println("PRINTING beginningAddress in copyDoubleToEEPROM");
-  Serial.println(beginningAddress);
   int addressToWriteTo = beginningAddress;
   double copyOfNum = numToCopy;
   long intCopyOfNum = (long) copyOfNum;
@@ -1720,37 +1722,25 @@ void copyDoubleToEEPROM(double numToCopy,int beginningAddress, int& countOfCharW
     countOfCharWritten++;
     iterations++;
   }
-  Serial.println();
 }
 
 
 
 void copyArrOfDoublesEEPROM(int whereToBeginWriting, int& countOfCharWritten ,int numberOfConstants, double* arrOfConstants, char* arrOfSigns)
 {
-  //EEPROM.begin();
-  Serial.println("PRINTING beginningAddress in copyArrOfDoublesEEPROM");
-  Serial.println(whereToBeginWriting);
-  Serial.println("PRINTING beginningAddress in copyArrOfDoublesEEPROM");
-  Serial.println(whereToBeginWriting);
   int numOfSigns = numberOfConstants;//thats just the relationship between number of terms in an equation an the number of signs ex. y = (+)x+1 has 2 sign, y = (+)x has 1...
   for(int i = 0; i<numberOfConstants; i++)
   {
-    if( arrOfSigns != NULL)//arrOfSigns is null in the case of exponential
-    {
-      Serial.println("PRINTING signToWrite in copyArrOfDoublesEEPROM");
-      Serial.println(arrOfSigns[i]);
-      EEPROM.write(whereToBeginWriting+countOfCharWritten,arrOfSigns[i]);
-      delay(5);//account for writing delay
-      countOfCharWritten++;
-      EEPROM.write(whereToBeginWriting+countOfCharWritten,'#');
-      delay(5);
-      countOfCharWritten++;
-    }
+    EEPROM.write(whereToBeginWriting+countOfCharWritten,arrOfSigns[i]);
+    delay(5);//account for writing delay
+    countOfCharWritten++;
+    EEPROM.write(whereToBeginWriting+countOfCharWritten,'#');
+    delay(5);
+    countOfCharWritten++;
     copyDoubleToEEPROM(fabs(arrOfConstants[i]), whereToBeginWriting+ countOfCharWritten, countOfCharWritten);
     EEPROM.write(whereToBeginWriting+countOfCharWritten,'#');
     delay(5);
     countOfCharWritten++;
-
   }
   updateWhereToWriteInEEPROM(whereToBeginWriting+countOfCharWritten);
 }
@@ -1775,14 +1765,14 @@ void setupEEPROM()
 {
   //this function sets up EEPROM for first time i.e. on virgin chip
   // it will only be called if the first byte is not "1"
-  //FORMAT: configFlag#whereToWriteToIfAppending(will take up four bytes)#numberOfSensors(setting max number of sensors to 144(it most probably wont be more than that) which requires 1 byte only))
+  //FORMAT: configFlag#whereToWriteToIfAppending(will take up four bytes)#numberOfSensors( max number of sensors to 144(it most probably wont be more than that) which requires 1 byte only))
   //1#0008#0
   Serial.println("IN setupEEPROM function");
   //EEPROM.begin();
   //Configured flag is first byte
   EEPROM.write(EEPROMPARTITIONOFFSET,'1');
   delay(5);
-  //"#" is the seprator of these fields
+  //"#" is the seprator of all fields
   EEPROM.write(EEPROMPARTITIONOFFSET+1,'#');
   delay(5);
   //initializing where to write to as 8 that is the address right after the Header(size of header is 8)
@@ -1836,21 +1826,25 @@ void updateWhereToWriteInEEPROM(int newAddress)
 
 void incrementNumberOfSensorsInEEPROM()
 {
-  //EEPROM.begin();
-  EEPROM.write(7,EEPROM.read(7)+1);// address 7 is always where the number of sensors will be stored.
+  int numberOfSensors = EEPROM.read(EEPROMPARTITIONOFFSET+7);
+  delay(5);
+  EEPROM.write(EEPROMPARTITIONOFFSET+7,numberOfSensors+1);// address 7 is always where the number of sensors will be stored.
+  delay(5);
 }
 
 void resetNumberOfSensorsInEEPROM()
 {
   //EEPROM.begin();
   EEPROM.write(7,0);// address 7 is always where the number of sensors will be stored.
+  delay(1);
 }
 
 void printEEPROM()
 {
+  //just an aux function used to spit out whatever is written in the eeprom
   Serial.println("PRINTING EEPROM");
-  int limit = findWhereToWrite();
-  for(int i = 0; i<limit; i++)
+  //int limit = findWhereToWrite();
+  for(int i = 0; i<511; i++)
   {
     Serial.print(EEPROM.read(i));
     Serial.print(" ");
@@ -1859,7 +1853,308 @@ void printEEPROM()
   Serial.println("ENDED PRINTING");
   Serial.println();
 }
-/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+void readEEPROM()
+{
+  //Format: ":nameOfSensor#typeOfFunction#ifInverted#numberOfConstants#all the constants#"
+  int numberOfSensors = EEPROM.read(EEPROMPARTITIONOFFSET+7);
+  int beginReadingFrom = EEPROMPARTITIONOFFSET+9; //address of the first sensor data is saved at index 8(beginning from the ':' in the format pasted above), but it starts with a ':',so we add one to skip it
+  //loop over number of sensors to print each
+  for(int i = 0; i< numberOfSensors; i++)
+  {
+    char nameOfSensor[15] = {0};// max length of function type and nameOfSensor is 14; change this value in case any extra functions are added. This has to be initialized with {0} or will not work properly
+    int indexToWrite = 0;
+    while(EEPROM.read(beginReadingFrom) != '#')
+    {
+      nameOfSensor[indexToWrite++] = EEPROM.read(beginReadingFrom++);
+    }
+    beginReadingFrom++;//skip over the #
+
+    char typeOfFunction[15] = {0};
+    indexToWrite = 0; //reset and resuse indexToWrite
+    while(EEPROM.read(beginReadingFrom) != '#')
+    {
+      typeOfFunction[indexToWrite++] = EEPROM.read(beginReadingFrom++);
+    }
+    beginReadingFrom++;//skip over the #
+
+    int ifInverted = EEPROM.read(beginReadingFrom);
+    beginReadingFrom+= 2; //skip over ifInverted field and #
+    // for(int i = 0; i<strlen(nameOfSensor);i++)
+    // {
+    //   Serial.println(nameOfSensor[i]);
+    // }
+    if(strncmp(typeOfFunction,"linear",6) == 0)
+    {
+      //do linear
+      Serial.print("Entry ");
+      Serial.print(i+1);
+      Serial.print(": ");
+      Serial.print(nameOfSensor);
+      Serial.println(" Function Type: Linear");
+      Serial.print("Expression y= ");
+      int numberOfConstants = EEPROM.read(beginReadingFrom);
+      double arrOfConstants[numberOfConstants];
+      beginReadingFrom+=2;//skip numberOfConstants and #
+      readConstants(beginReadingFrom, arrOfConstants, numberOfConstants);
+      printLinearFunctionExpression(arrOfConstants);
+      beginReadingFrom++;
+    }
+    else if(strncmp(typeOfFunction,"quadratic",9) == 0)
+    {
+      //do quadratic
+      Serial.print("Entry ");
+      Serial.print(i+1);
+      Serial.print(": ");
+      Serial.print(nameOfSensor);
+      Serial.println(" Function Type: Quadratic");
+      Serial.print("Expression y= ");
+      int numberOfConstants = EEPROM.read(beginReadingFrom);
+      double arrOfConstants[numberOfConstants];
+      beginReadingFrom+=2;//skip numberOfConstants and #
+      readConstants(beginReadingFrom, arrOfConstants, numberOfConstants);
+      printQuadraticFunctionExpression(arrOfConstants);
+      beginReadingFrom++;
+    }
+    else if(strncmp(typeOfFunction,"exponential",11) == 0)
+    {
+      //do exponential
+      Serial.print("Entry ");
+      Serial.print(i+1);
+      Serial.print(": ");
+      Serial.print(nameOfSensor);
+      Serial.println(" Function Type: Exponential");
+      Serial.print("Expression y= ");
+      int numberOfConstants = EEPROM.read(beginReadingFrom);
+      double arrOfConstants[numberOfConstants];
+      beginReadingFrom+=2;//skip numberOfConstants and #
+      readConstants(beginReadingFrom, arrOfConstants, numberOfConstants);
+      printExponentialFunctionExpression(arrOfConstants);
+      beginReadingFrom++;
+    }
+    else if(strncmp(typeOfFunction,"logarithmic",11) == 0)
+    {
+      //do logarithmic
+      Serial.print("Entry ");
+      Serial.print(i+1);
+      Serial.print(": ");
+      Serial.print(nameOfSensor);
+      Serial.println(" Function Type: Logarithmic");
+      Serial.print("Expression y=");
+      int numberOfConstants = EEPROM.read(beginReadingFrom);
+      double arrOfConstants[numberOfConstants];
+      beginReadingFrom+=2;//skip numberOfConstants and #
+      readConstants(beginReadingFrom, arrOfConstants, numberOfConstants);
+      printLogarithmicFunctionExpression(arrOfConstants);
+      beginReadingFrom++;
+    }
+    else if(strncmp(typeOfFunction,"power",5) == 0)
+    {
+      Serial.print("Entry ");
+      Serial.print(i+1);
+      Serial.print(": ");
+      Serial.print(nameOfSensor);
+      Serial.println(" Function Type: Power");
+      Serial.print("Expression y=");
+      int numberOfConstants = EEPROM.read(beginReadingFrom);
+      double arrOfConstants[numberOfConstants];
+      beginReadingFrom+=2;//skip numberOfConstants and #
+      readConstants(beginReadingFrom, arrOfConstants, numberOfConstants);
+      printPowerFunctionExpression(arrOfConstants);
+      beginReadingFrom++;
+    }
+    else
+    {
+      Serial.println("UNDEFINED FUNCTION READING");
+    }
+  }
+}
+
+void printLinearFunctionExpression(double* arrOfConstants)
+{
+  //linear would only have two constants
+  char sign  = (arrOfConstants[0]<0) ? '-' : '+';
+  if(sign == '-') Serial.print(sign);//ignore + at the front
+  Serial.print("(");
+  Serial.print(abs(arrOfConstants[0]), reportingPrecision);
+  Serial.print(")x ");
+  sign = (arrOfConstants[1]<0) ? '-' : '+';
+  Serial.print(sign);
+  Serial.print(" (");
+  Serial.print(abs(arrOfConstants[1]), reportingPrecision);
+  Serial.println(")");
+  Serial.println();
+}
+
+void printQuadraticFunctionExpression(double* arrOfConstants)
+{
+  //Quadratic would only have 3 constants
+  char sign  = (arrOfConstants[0]<0) ? '-' : '+';
+  if(sign == '-') Serial.print(sign);//ignore + at the front
+  Serial.print("(");
+  Serial.print(abs(arrOfConstants[0]),reportingPrecision);
+  Serial.print(")x^2 ");
+  sign = (arrOfConstants[1]<0) ? '-' : '+';
+  Serial.print(sign);
+  Serial.print(" (");
+  Serial.print(abs(arrOfConstants[1]), reportingPrecision);
+  Serial.print(")x ");
+  sign = (arrOfConstants[2]<0) ? '-' : '+';
+  Serial.print(sign);
+  Serial.print(" (");
+  Serial.print(abs(arrOfConstants[2]), reportingPrecision);
+  Serial.println(")");
+  Serial.println();
+}
+
+void printExponentialFunctionExpression(double* arrOfConstants)
+{
+  //Exponential would only have two constants
+  Serial.print("(");
+  char sign  = (arrOfConstants[0]<0) ? '-' : '+';
+  if(sign == '-') Serial.print(sign);//ignore + at the front
+  Serial.print(abs(arrOfConstants[0]), reportingPrecision);
+  Serial.print(") * exp(");
+  sign = (arrOfConstants[1]<0) ? '-' : '+';
+  if(sign == '-') Serial.print(sign);//ignore + at the front of exp power
+  Serial.print(abs(arrOfConstants[1]),reportingPrecision);
+  Serial.println(" * x)");
+  Serial.println();
+}
+void printLogarithmicFunctionExpression(double* arrOfConstants)
+{
+  //Logarithmic would only have two constants
+  Serial.print(" (");
+  char sign  = (arrOfConstants[0]<0) ? '-' : '+';
+  if(sign == '-') Serial.print(sign);//ignore + at the front
+  Serial.print(abs(arrOfConstants[0]), reportingPrecision);
+  Serial.print(") ln(x) ");
+  sign = (arrOfConstants[1]<0) ? '-' : '+';
+  Serial.print(sign);
+  Serial.print(" (");
+  Serial.print(abs(arrOfConstants[1]), reportingPrecision);
+  Serial.println(")");
+  Serial.println();
+}
+
+void printPowerFunctionExpression(double* arrOfConstants)
+{
+  //Logarithmic would only have two constants
+  Serial.print(" (");
+  char sign  = (arrOfConstants[0]<0) ? '-' : '+';
+  if(sign == '-') Serial.print(sign);//ignore + at the front
+  Serial.print(abs(arrOfConstants[0]), reportingPrecision);
+  Serial.print(") x^");
+  sign = (arrOfConstants[1]<0) ? '-' : '+';
+  Serial.print("(");
+  if(sign == '-') Serial.print(sign);//ignore + at the front
+  Serial.print(abs(arrOfConstants[1]), reportingPrecision);
+  Serial.println(")");
+  Serial.println();
+}
+
+
+void readConstants(int& whereToBeginReading, double* arrOfConstants, int numberOfConstants )
+{
+  //int numberOfConstants = EEPROM.read(whereToBeginReading);
+  //double arrOfConstants[numberOfConstants];
+  //whereToBeginReading+=2;//skip numberOfConstants and #
+  // Serial.println("Printing whereToBeginReading in readConstants");
+  // Serial.println(whereToBeginReading);
+  bool readingLHS = true;
+  for(int i = 0; i< numberOfConstants; i++)
+  {
+    double constant = 0.0;
+    char signOfConstant = EEPROM.read(whereToBeginReading); //reads the sign of the constant being read
+    whereToBeginReading+=2; //skip over sign and #
+    int tenthPower = findLargestLHSTenthPower(whereToBeginReading);
+    while(EEPROM.read(whereToBeginReading) != '#')
+    {
+
+      if(EEPROM.read(whereToBeginReading) == '.')
+      {
+        //since the double values are stored one by one in the EEPROM, they have to be read out one by one and reconstructed likewise
+        //The way they are stored is say a given number is AB.CDEF, the number will be broken down into its respective digits(Hundreds,tens, ones,tenths, hundredths, thouthandths... )
+        // and what seperates them is a '.', so when we read a '.' we switch from reading the left hand side, which would be multiplied by tens in order to reconstruct it, and start dividing
+        // by powers of tens
+        readingLHS  =false;
+        tenthPower = 1;//reset tenth power
+        whereToBeginReading++;
+        continue;
+      }
+      if(readingLHS)
+      {
+        int tenthMupltiplier = pow(10,tenthPower);
+        constant += EEPROM.read(whereToBeginReading) * tenthMupltiplier;
+        whereToBeginReading++;
+        tenthPower--; //tenth power goes down when we read left to right from the lhs
+
+      }
+      else
+      {
+        int tenthMupltiplier = pow(10,tenthPower);
+        constant += double(EEPROM.read(whereToBeginReading)) / tenthMupltiplier;
+        whereToBeginReading++;
+        tenthPower++; //tenth power goes up when we read left to right from the rhs
+      }
+
+    }
+    whereToBeginReading++;
+    constant = (signOfConstant == '+' ? constant : -constant);
+    arrOfConstants[i] = constant; //copy to array after done reading field
+  }
+
+
+}
+
+int findLargestLHSTenthPower(int whereToBeginReading)
+{
+  int readIndex = whereToBeginReading;
+  int largestTenthPower = 0;
+  if(EEPROM.read(whereToBeginReading) == 0) return largestTenthPower;
+  while(EEPROM.read(readIndex) != '.')
+  {
+    largestTenthPower++;//keep incremeting largestTenthPower until we reach the '.' to know what place is the first digit in the field i.e thousandths/hundredths.....
+    readIndex++;
+  }
+  return largestTenthPower-1;
+}
+
+
+bool getArrayOfConstants(char* nameOfSensor, char* typeOfFunction,double* arrToBeFilled, int numberOfConstants)
+{
+  //Takes the name of a sensor, a statically allocated array in the calling function that is to be filled with the constants, and the number of constants
+  // It then fills the arrToBeFilled with the constants saved in the EEPROM that related to the sensor name if found
+  // returns true if found, and false if not
+  bool found = false;
+  for(int i = 0; i< 511; i++)
+  {
+    //Do linear search for the name of the sensor in EEPROM
+    if(EEPROM.read(i) == nameOfSensor[0])
+    {
+      int indexOfFirstOccurence = i;
+      found = true;
+      for(int j = 1; j< strlen(nameOfSensor); j++)
+      {
+        // check to see if rest of eeprom name field is the same as nameOfSensor
+        if(EEPROM.read(indexOfFirstOccurence+j) != nameOfSensor[j])
+        {
+          found = false;
+        }
+      }
+      if(found)
+      {
+        int whereToBeginReading = indexOfFirstOccurence + strlen(nameOfSensor) + 1 + strlen(typeOfFunction) + 5; //added 1 to skip the '#' and 5 to skip to the constants.
+        readConstants(whereToBeginReading,arrToBeFilled,numberOfConstants);
+        return found;
+      }
+    }
+
+  }
+  return found;
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -2163,38 +2458,38 @@ void printEEPROM()
 //     returnedentries = atoi (totalentriesread);  //convert returned array values to integers
 //     return returnedeepromvalue; //return the value as an integer that was read as the last EEPROM location
 // }
-
-int save_data(int offset, char* datalocal){
-  //Mechanism called by another function to write pre-packaged data to the EEPROM
-  #ifdef EEPROMDEBUG
-  Serial.println(F("Call to EEPROM Write Function"));
-  #endif
-  delay (20);  //allow serial
-  Serial.println("PRINTING DATALOCAL VARIABLE PASSED TO SAVE_DATA() IN IT");
-  Serial.print("OFFEST:");
-  Serial.println(offset);
-  for(int i = 0; i<strlen(datalocal); i++ )
-  {
-    Serial.print(datalocal[i]);
-  }
-  Serial.println();
-  Serial.println("ENDED PRINTING");
-  EEPROM.begin(); //this takes 0 arguments for AVR, but a value of 512 for ESP32
-  delay(1000);
-  int index = 0; //variable to save final index location
-  for (int i = offset; i < (strlen(datalocal)+ offset); ++i){
-    Serial.print("Saving the following char to eeprom ");
-    Serial.print(datalocal[i]);
-    Serial.print(" at location: ");
-    Serial.println(i);
-    EEPROM.update(i, datalocal[i]); //Using update as it increases the life of EEPROM.
-    //EEPROM.commit();
-    delay(100);
-    //delay(1);
-    index = i;
-  }
-  delay(10);
-} //end of save_data function define
+//NOTE: MK disabled this function
+// int save_data(int offset, char* datalocal){
+//   //Mechanism called by another function to write pre-packaged data to the EEPROM
+//   #ifdef EEPROMDEBUG
+//   Serial.println(F("Call to EEPROM Write Function"));
+//   #endif
+//   delay (20);  //allow serial
+//   Serial.println("PRINTING DATALOCAL VARIABLE PASSED TO SAVE_DATA() IN IT");
+//   Serial.print("OFFEST:");
+//   Serial.println(offset);
+//   for(int i = 0; i<strlen(datalocal); i++ )
+//   {
+//     Serial.print(datalocal[i]);
+//   }
+//   Serial.println();
+//   Serial.println("ENDED PRINTING");
+//   EEPROM.begin(); //this takes 0 arguments for AVR, but a value of 512 for ESP32
+//   delay(1000);
+//   int index = 0; //variable to save final index location
+//   for (int i = offset; i < (strlen(datalocal)+ offset); ++i){
+//     Serial.print("Saving the following char to eeprom ");
+//     Serial.print(datalocal[i]);
+//     Serial.print(" at location: ");
+//     Serial.println(i);
+//     EEPROM.update(i, datalocal[i]); //Using update as it increases the life of EEPROM.
+//     //EEPROM.commit();
+//     delay(100);
+//     //delay(1);
+//     index = i;
+//   }
+//   delay(10);
+// } //end of save_data function define
 
 int saveToEEPROMPrompt (int& appendedquestion, int& invertedquestion, char* inputvaluename, unsigned int inputaraylength){
   Serial.print(F("Save Regression(0=No, 1=Yes): "));
@@ -2375,49 +2670,6 @@ void loop()
 {
 
 
-/////////////////////////////TESTS///////////////////////////////////////////////
-  // incrementNumberOfSensorsInEEPROM();
-  // incrementNumberOfSensorsInEEPROM();
-  // printEEPROM();//should have 2 at address 7
-  //
-  // //Testing updating whereToWrite
-  // updateWhereToWriteInEEPROM(255);
-  // Serial.println("SHOULD PRINT 255 0 0 0 IN ADDRESS");
-  // printEEPROM();
-  // updateWhereToWriteInEEPROM(256);
-  // Serial.println("SHOULD PRINT 255 1 0 0 IN ADDRESS");
-  // printEEPROM();
-  //
-  //
-  // //Testing copyDoubleToEEPROM
-  // int num = 0;
-  // copyDoubleToEEPROM(1.23456,num,num);
-  // Serial.println("SHOULD PRINT 1.23456 IN BEGINNING AT ADDRESS 0");
-  // printEEPROM();
-  // Serial.println(num);
-
-  //Testing writeToEEPROM
-  double arrOfConstants[2]  = {1.23456,2.23456};
-  double arrOfConstants2[2]  = {3.45678,4.56789};
-  char arrOfSigns [1]= {'+'};
-  char arrOfSigns2 [1]= {'-'};
-
-//void writeToEEPROM( char* nameOfSensor, char* typeOfFunction,int numberOfConstants, double* arrOfConstants, char* arrOfSigns,char appendOrOverwrite, char ifInverted)
-  // writeToEEPROM( "sensor1", "linear", 2,  arrOfConstants,  arrOfSigns,'2', '0');
-  // printEEPROM();
-  // writeToEEPROM( "sensor2", "quadra", 2,  arrOfConstants2,  arrOfSigns2,'1', '0');
-  // printEEPROM();
-  // writeToEEPROM( "sensor3", "testin", 2,  arrOfConstants2,  arrOfSigns2,'1', '0');
-  // printEEPROM();
-  //EEPROM.begin();
-  Serial.println("READING IN MAIN LOOP FOR 250 ADDRESSES");
-  for(int i = 0; i<250; i++)
-  {
-    Serial.print(EEPROM.read(i));
-    Serial.print(" ");
-  }
-
-/////////////////////////////////////////////////////////////////////////////////
   bool dealocArrays=0;//keep arrays, flag is normal pos.
   unsigned int selectedValue = 0; //initialize selection choice holder as 0
   unsigned int runStatus = 0;  // Status of previous function's run, if an error is returned, this will come back as zero, chose next action accordingly
@@ -2446,23 +2698,7 @@ void loop()
   //   Serial.print(" ");
   // }
   // Serial.println();
-  printEEPROM();
-  //Testing if eeprom is writing and working
-  //EEPROM.begin();
-  // Serial.println("READING VALUES FROM EEPROM: Second Try");
-  // EEPROM.write(0,'m');
-  // delay(5);
-  // EEPROM.write(1,'o');
-  // delay(5);
-  // EEPROM.write(2,'g');
-  // delay(5);
-  // EEPROM.write(3,'o');
-  // delay(5);
-  // for(int i = 0; i < 1023; i++)
-  // {
-  //   Serial.print(EEPROM.read(i));
-  //   Serial.print(" ");
-  // }
+
 
   if (dealocArrays ==1)
   {
