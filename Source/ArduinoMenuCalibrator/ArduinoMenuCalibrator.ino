@@ -57,6 +57,7 @@ void setup() {
   //Serial.setTimeout(10000); //set Serial Timeout
   Serial.println(F("Arduino Least Squares Fit Tool v.1.0 | Note: USE Newline or CR/LN in serial terminal program"));
 
+
   // //an IFDEF is used to activate the EEPROM defaulter if enabled
   // #ifdef DEFAULTTHEEEPROM
   // WriteDefaultEEPROM(); //run this for a vigin chip
@@ -377,7 +378,10 @@ void fabls_polynomial(unsigned int N, unsigned int n, double *px,double *py, dou
     {
         X[i]=0;
         for (j=0;j<N;j++)
-            X[i]=X[i]+pow(px[j],i);        //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+        {
+          X[i]=X[i]+pow(px[j],i);        //consecutive positions of the array will store N,sigma(xi),sigma(xi^2),sigma(xi^3)....sigma(xi^2n)
+        }
+
     }
     double B[n+1][n+2],a[n+1];            //B is the Normal matrix(augmented) that will store the equations, 'a' is for value of the final coefficients
     for (i=0;i<=n;i++)
@@ -460,8 +464,10 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
    Serial.print(F("The fitted (order "));
    Serial.print(n);
    Serial.print(F(") Polynomial is given by:\n y ="));
+   char arrOfSigns[N] = {0};
    for (int i = 0; i < (n + 1); i++) // total points is equal to n+1
     {
+      arrOfSigns[i] = (a[i]<0) ? '-' : '+';
       if (i == 0) //supress the initial + sign in the display
          {
           Serial.print(F(" ("));
@@ -483,6 +489,7 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
 
    for (int j = 0; j < N; ++j) //for all points
    {
+
     double y = 0; //set each term's calculation initialized at 0
     for (int q = 0; q < (n + 1); q++)  //for all terms
       {
@@ -552,10 +559,8 @@ void fabls_polyOutput(unsigned int N, unsigned int n, double *a, double *px, dou
         writeToEEPROM( entryname, "quadratic", N+1, regressionterms, arrOfSigns,  append,  reportInvertedValues);
       }
       else
-      {6
-
+      {
         writeToEEPROM( entryname, "quadratic", N+1, a, arrOfSigns,  append,  reportInvertedValues);
-
       }
       // itoa(reportInvertedValues, invertedStatus, 10);
       // itoa(reportedConfiguredStatus, configuredStatus, 10);
@@ -1215,9 +1220,10 @@ int fitSelection(int fitChoice, uint8_t skipEntry)
     {
     dataEntrySelection(totalPoints);// select point entry method
     }
-    double regCoeff[(polynomialDegree + 1)] = {0};
+    double* regCoeff = new double[(polynomialDegree + 1)];
     fabls_polynomial(totalPoints, polynomialDegree, px, py, regCoeff); //calculate polynomial regressions
     fabls_polyOutput(totalPoints, polynomialDegree, regCoeff, px, py);
+    delete[] regCoeff;
 
     return 1; // successfully ran
   }
@@ -1320,7 +1326,9 @@ int manualPointEntry (int i) //i is total points entered --needs to have total p
       Serial.print("Input x-val");
       Serial.print(i+1);
       Serial.print(": ");
-      px[i] = (double)NumericFloatInput();
+      double xVal = (double)NumericFloatInput();
+      delay(1);
+      px[i] = xVal;
       Serial.print(" Entered Val: ");
       Serial.println(px[i]);
       delay(250); //nice, easy transisitonal delay to next input
@@ -1329,7 +1337,9 @@ int manualPointEntry (int i) //i is total points entered --needs to have total p
       Serial.print("Input y-val");
       Serial.print(i+1);
       Serial.print(": ");
-      py[i] = (double)NumericFloatInput();
+      double yVal = (double)NumericFloatInput();
+      delay(1);
+      py[i] = yVal;
       Serial.print(" Entered Val: ");
       Serial.println(py[i]);
       delay(250);
@@ -1591,7 +1601,6 @@ void displayFitChoiceMenu()
   Serial.println(F("  (5)Power - Min 3 pts, x != 0"));
   Serial.println(F("  (6)Nth Order Polynomial - Min pts = order+1")); //a 2nd power requires 2 points, 3rd power requires 3, etc.
   Serial.println(F("  (7)List Pts in Memory"));
-  Serial.println(F("  (7)Read out EEPROM"));
   Serial.println(F("  (8)Manual Pt Entry"));
   Serial.println(F("  (9)Delete Current Points"));
   Serial.print(F("  (10)Toggle Use Cache Points on fits, current status: "));
@@ -1767,7 +1776,6 @@ void setupEEPROM()
   // it will only be called if the first byte is not "1"
   //FORMAT: configFlag#whereToWriteToIfAppending(will take up four bytes)#numberOfSensors( max number of sensors to 144(it most probably wont be more than that) which requires 1 byte only))
   //1#0008#0
-  Serial.println("IN setupEEPROM function");
   //EEPROM.begin();
   //Configured flag is first byte
   EEPROM.write(EEPROMPARTITIONOFFSET,'1');
@@ -2668,8 +2676,6 @@ void adHocPointEntry()
 
 void loop()
 {
-
-
   bool dealocArrays=0;//keep arrays, flag is normal pos.
   unsigned int selectedValue = 0; //initialize selection choice holder as 0
   unsigned int runStatus = 0;  // Status of previous function's run, if an error is returned, this will come back as zero, chose next action accordingly
